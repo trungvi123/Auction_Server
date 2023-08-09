@@ -18,3 +18,7 @@ export const checkSignIn = [
         .trim()
         .isLength({ min: 3 }),
 ]
+
+export const checkEmail = [
+    body('email', 'Invalid email').trim().isEmail()
+]

@@ -24,6 +24,10 @@ const schema = mongoose.Schema({
         type: String,
         require: true
     },
+    resetPass: {
+        type: String,
+        default: ''
+    },
     birthday: {
         type: String,
     },

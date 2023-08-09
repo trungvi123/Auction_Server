@@ -3,6 +3,7 @@ import { validationResult } from "express-validator";
 import jwt from 'jsonwebtoken'
 
 import { userModel } from "../model/userModel.js";
+import configMail from "../utils/configMail.js";
 
 
 const getUserById = async (req, res) => {
@@ -28,7 +29,7 @@ const signUp = async (req, res) => {
         }
 
         const { email, address, idCard, bankName, bankNumber, password, lastName, phoneNumber } = req.body
-        
+
         const already = await userModel.findOne({ email })
         if (already) {
             return res.status(400).json({ status: 'failure', errors: { msg: 'Tài khoản đã tồn tại!' } });
@@ -110,4 +111,76 @@ const deleteUserById = async (req, res) => {
 
 };
 
-export { deleteUserById, getUserById, signIn, signUp };
+const resetPass = async (req, res) => {
+    try {
+        const { email } = req.body
+        const user = await userModel.findOne({ email })
+        if (!user) {
+            return res.status(400).json({ status: 'failure', errors: { msg: 'Tài khoản không tồn tại!' } });
+        }
+        // tao pass mới
+        const newpass = 'pass' + Math.floor(Math.random() * 100000)
+        // ma hóa pass
+        const salt = bcrypt.genSaltSync(12)
+        const hashPassWord = bcrypt.hashSync(newpass, salt)
+        //cap nhat csdl
+        await userModel.findOneAndUpdate({ email }, {
+            hashPassWord,
+            resetPass: hashPassWord
+        },
+            { new: true })
+        // gửi mail cho user
+        const subject = 'Mật khẩu mới'
+        const text = 'Xin chào,'
+        const html = `
+        <p>Chúc mừng bạn đã khôi phục mật khẩu thành công</p>
+        <p>Đây là mật khẩu tạm thời của bạn: ${newpass}</p>
+        <p>Vui lòng thay đổi mật khẩu của bạn!</p>
+        `
+        const { transporter, mailOption } = configMail(email, subject, text, html)
+        transporter.sendMail(mailOption, (err) => {
+            if (err) {
+                console.log(err);
+                res.status(500).json({ status:'failure', message: "Gửi mail thất bại!" });
+
+            } else {
+                res.status(200).json({ status:'success',message: "success" });
+            }
+        });
+
+    } catch (error) {
+        res.status(500).json({ status: 'failure' });
+    }
+
+}
+
+const changePass = async (req, res) => {
+    try {
+        const { email, password, newPassword } = req.body
+        const user = await userModel.findOne({ email })
+        if (!user) {
+            return res.status(400).json({ status: 'failure', errors: { msg: 'Tài khoản không tồn tại!' } });
+        }
+
+        const matched = bcrypt.compareSync(password, user.hashPassWord);
+        if (!matched) {
+            return res.status(400).json({ status: 'failure', errors: { msg: 'Tài khoản hoặc mật khẩu không chính xác!' } });
+        }
+
+        const salt = bcrypt.genSaltSync(12)
+        const hashPassWord = bcrypt.hashSync(newPassword, salt)
+        //cap nhat csdl
+        await userModel.findOneAndUpdate({ email }, {
+            hashPassWord
+        },
+            { new: true })
+
+        return res.status(200).json({ status: 'success' })
+
+    } catch (error) {
+        res.status(500).json({ status: 'failure' });
+
+    }
+}
+
+export { deleteUserById, getUserById, signIn, signUp, resetPass, changePass };
