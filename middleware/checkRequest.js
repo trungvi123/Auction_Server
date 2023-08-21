@@ -22,3 +22,13 @@ export const checkSignIn = [
 export const checkEmail = [
     body('email', 'Invalid email').trim().isEmail()
 ]
+
+export const checkProduct = [
+    body('name', 'Invalid name').trim().not().isEmpty(),
+    body('basePrice', 'Invalid basePrice').trim().not().isEmpty(),
+    body('stepPrice', 'Invalid stepPrice').trim().not().isEmpty(),
+    body('startTime', 'Invalid startTime').trim().not().isEmpty(),
+    body('duration', 'Invalid duration').trim().not().isEmpty(),
+    body('owner', 'Invalid owner').trim().not().isEmpty(),
+
+]

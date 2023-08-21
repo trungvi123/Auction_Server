@@ -8,45 +8,56 @@ const schema = mongoose.Schema({
     },
     description: {
         type: String,
+        default: ''
     },
     basePrice: {
         type: mongoose.Types.Decimal128,
         required: true,
     },
+    price:{
+        type: mongoose.Types.Decimal128,
+        require:true
+    },
     currentPrice: {
         type: mongoose.Types.Decimal128,
-        required: true,
+        default: 0
     },
     stepPrice: {
         type: mongoose.Types.Decimal128,
         default: 0
     },
     startTime: {
-        type: Date,
+        type: String,
         require: true
     },
     endTime: {
-        type: Date,
-        require: true
+        type: String
     },
     duration: {
         type: Number,
-        default: 300,
+        require: true
     },
     soldAt: {
-        type: Date,
+        type: String,
     },
-    image: [
+    images: [
         {
             type: String,
         }
     ],
-    catergory: {
-        type: String,
+    category: {
+        type: mongoose.Types.ObjectId,
+        ref: 'auction_categogy',
     },
     auctionStarted: { // admin duyet thi se bat dau
         type: Boolean,
         default: false,
+    },
+    status:{
+        type: String,
+        default: 'Đang chờ duyệt',
+        // Đã được duyệt
+        // Đã bị từ chối
     },
     auctionEnded: { // het thoi gian sẽ là true
         type: Boolean,
@@ -59,6 +70,7 @@ const schema = mongoose.Schema({
     owner: { // người tạo 
         type: mongoose.Types.ObjectId,
         ref: 'auction_user',
+        require: true
     },
     purchasedBy: { // người mua
         type: mongoose.Types.ObjectId,
@@ -73,11 +85,11 @@ const schema = mongoose.Schema({
             user: {
                 type: mongoose.Types.ObjectId,
                 ref: 'auction_user',
-                required: true,
+                // required: true,
             },
             quantity: {
-                type: types.Decimal128,
-                required: true,
+                type: mongoose.Types.Decimal128,
+                // required: true,
             },
             //   time: {
             //     type: Date,

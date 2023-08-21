@@ -11,11 +11,10 @@ const getUserById = async (req, res) => {
 
     const user = await userModel.findById(idUser).select('_id firstName lastName email address phoneNumber')
 
-    if (user) {
-        return res.status(200).json({ status: 'success', user })
-    } else {
-        return res.status(400).json({ status: 'failure', errors: { msg: 'Xóa thất bại!' } })
+    if (!user) {
+        return res.status(400).json({ status: 'failure', errors: { msg: 'thất bại!' } })
     }
+    return res.status(200).json({ status: 'success', user })
 
 };
 
@@ -125,8 +124,7 @@ const resetPass = async (req, res) => {
         const hashPassWord = bcrypt.hashSync(newpass, salt)
         //cap nhat csdl
         await userModel.findOneAndUpdate({ email }, {
-            hashPassWord,
-            resetPass: hashPassWord
+            hashPassWord
         },
             { new: true })
         // gửi mail cho user
