@@ -3,13 +3,12 @@ import cors from 'cors'
 import mongoose from 'mongoose'
 import env from 'dotenv'
 import bodyparser from 'body-parser'
-
-
 import userRouter from './routes/userRoute.js'
 import productRouter from './routes/productRoute.js'
 import categoryRouter from './routes/categoryRoute.js'
 
 env.config()
+
 
 
 const app = express()
@@ -27,7 +26,6 @@ app.use(bodyparser.urlencoded({ extended: true }));
 app.use('/user', userRouter)
 app.use('/product', productRouter)
 app.use('/category', categoryRouter)
-
 
 
 const PORT = process.env.PORT || 6000
