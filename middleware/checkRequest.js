@@ -1,9 +1,5 @@
 import { body } from "express-validator"
 
-
-
-
-
 export const checkSignUp = [
     body('lastName', 'Invalid name').trim().not().isEmpty(),
     body('email', 'Invalid email').trim().isEmail(),
@@ -30,5 +26,8 @@ export const checkProduct = [
     body('startTime', 'Invalid startTime').trim().not().isEmpty(),
     body('duration', 'Invalid duration').trim().not().isEmpty(),
     body('owner', 'Invalid owner').trim().not().isEmpty(),
-
+    body('price', 'Invalid price').trim().not().isEmpty(),
+    body('owner', 'Invalid owner').trim().not().isEmpty(),
+    body('endTime', 'Invalid endTime').trim().not().isEmpty(),
+    body('category', 'Invalid category').trim().not().isEmpty(),
 ]

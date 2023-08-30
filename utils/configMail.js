@@ -22,10 +22,6 @@ const configMail = (email, subject, text, html) => {
         };
 
         return {transporter , mailOption}
-
-        
-       
-
     } catch (error) {
         return 'failure'
 

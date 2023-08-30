@@ -51,11 +51,10 @@ const signUp = async (req, res) => {
         })
 
         await newUser.save()
-        res.status(200).json({ status: 'success' });
+        return res.status(200).json({ status: 'success' });
     } catch (error) {
-        res.status(500).json({ status: 'failure' });
+        return res.status(500).json({ status: 'failure' });
     }
-
 };
 
 const signIn = async (req, res) => {
@@ -78,22 +77,26 @@ const signIn = async (req, res) => {
         if (!matched) {
             return res.status(400).json({ status: 'failure', errors: { msg: 'Tài khoản hoặc mật khẩu không chính xác!' } });
         }
+
         const payload = {
             _id: user._id,
             email,
+            role: user.role || 'user',
             lastName: user.lastName
         }
 
-        jwt.sign(payload, process.env.SECRET_KEY, { expiresIn: 36000 }, (err, token) => {
-            if (err) {
-                throw err;
-            }
-            res.status(200).json({ status: 'success', token });
-        })
+        const accessToken = jwt.sign(payload, process.env.SECRET_KEY, { expiresIn: '1d' })
+        const refreshToken = jwt.sign(payload, process.env.SECRET_REFRESH_KEY, { expiresIn: '7d' })
 
+        res.cookie('refreshToken', refreshToken, {
+            httpOnly: true,
+            sameSite: 'none', // or 'lax' if applicable
+            secure: true, // Set to true in production for secure cookies
+        });
 
+        return res.status(200).json({ status: 'success', accessToken });
     } catch (error) {
-        res.status(500).json({ status: 'failure' });
+        return res.status(500).json({ status: 'failure' });
     }
 };
 
@@ -139,10 +142,10 @@ const resetPass = async (req, res) => {
         transporter.sendMail(mailOption, (err) => {
             if (err) {
                 console.log(err);
-                res.status(500).json({ status:'failure', message: "Gửi mail thất bại!" });
+                res.status(500).json({ status: 'failure', message: "Gửi mail thất bại!" });
 
             } else {
-                res.status(200).json({ status:'success',message: "success" });
+                res.status(200).json({ status: 'success', message: "success" });
             }
         });
 
@@ -181,4 +184,24 @@ const changePass = async (req, res) => {
     }
 }
 
-export { deleteUserById, getUserById, signIn, signUp, resetPass, changePass };
+const updateBidsForUserById_server = async (id, idProd) => {
+    try {
+        const check = await userModel.findOne({ bids: idProd })
+        if (check) {
+            return true
+        } else {
+            const data = await userModel.findByIdAndUpdate(id, {
+                $push: { bids: idProd }
+            }, { new: true })
+            if (!data) {
+                return false
+            }
+            return data
+        }
+
+    } catch (err) {
+        return err
+    }
+}
+
+export { deleteUserById, updateBidsForUserById_server, getUserById, signIn, signUp, resetPass, changePass };

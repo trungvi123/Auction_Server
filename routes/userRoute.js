@@ -5,6 +5,7 @@ import {
   signIn,
   signUp, resetPass,changePass
 } from "../controllers/userController.js";
+import { checkAccessToken, checkAdminAccessToken } from "../middleware/authToken.js";
 import { checkSignUp, checkSignIn, checkEmail } from '../middleware/checkRequest.js'
 
 
@@ -15,10 +16,10 @@ router.get('/:id', getUserById);
 
 router.post('/signUp', checkSignUp, signUp);
 router.post('/signIn', checkSignIn, signIn);
-router.post('/resetPass', checkEmail, resetPass);
-router.post('/changePass', checkSignIn, changePass);
+router.post('/resetPass',checkAccessToken, checkEmail, resetPass);
+router.post('/changePass',checkAccessToken, checkSignIn, changePass);
 
-router.delete('/:id', deleteUserById);
+router.delete('/:id',checkAdminAccessToken, deleteUserById);
 
 
 export default router 

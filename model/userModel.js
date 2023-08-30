@@ -30,6 +30,11 @@ const schema = mongoose.Schema({
     idCard: {
         type: String,
         require: true,
+        unique: true
+    },
+    role: {
+        type: String,
+        default: 'user' // admin
     },
     bankNumber: {
         type: String,
@@ -43,30 +48,30 @@ const schema = mongoose.Schema({
         type: String,
         require: true,
     },
-    purchasedProduct:[
-        {
-           type: mongoose.Types.ObjectId,
-           ref: 'auction_product'
-        }
-    ],
-    createdProduct:[
-        {
-           type: mongoose.Types.ObjectId,
-           ref: 'auction_product'
-        }
-    ],
-    bid: [
+    purchasedProduct: [
         {
             type: mongoose.Types.ObjectId,
             ref: 'auction_product'
         }
     ],
-    room: {
-        type: mongoose.Types.ObjectId,
-        ref: 'auction_room',
-      },
-
-
+    createdProduct: [
+        {
+            type: mongoose.Types.ObjectId,
+            ref: 'auction_product'
+        }
+    ],
+    bids: [
+        {
+            type: mongoose.Types.ObjectId,
+            ref: 'auction_product'
+        }
+    ],
+    room: [
+        {
+            type: mongoose.Types.ObjectId,
+            ref: 'auction_room',
+        }
+    ],
 })
 
 export const userModel = mongoose.model('auction_user', schema)

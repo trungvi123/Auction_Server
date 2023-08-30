@@ -14,9 +14,9 @@ const schema = mongoose.Schema({
         type: mongoose.Types.Decimal128,
         required: true,
     },
-    price:{
+    price: {
         type: mongoose.Types.Decimal128,
-        require:true
+        require: true
     },
     currentPrice: {
         type: mongoose.Types.Decimal128,
@@ -53,7 +53,7 @@ const schema = mongoose.Schema({
         type: Boolean,
         default: false,
     },
-    status:{
+    status: {
         type: String,
         default: 'Đang chờ duyệt',
         // Đã được duyệt
@@ -82,21 +82,25 @@ const schema = mongoose.Schema({
     },
     bids: [
         {
+            lastName: {
+                type: String,
+                default: 'Ẩn danh'
+            },
             user: {
                 type: mongoose.Types.ObjectId,
                 ref: 'auction_user',
                 // required: true,
             },
-            quantity: {
+            price: {
                 type: mongoose.Types.Decimal128,
                 // required: true,
             },
-            //   time: {
-            //     type: Date,
-            //     default: Date.now,
-            //   },
+            time: {
+                type: Date,
+                default: Date.now,
+            },
         },
-    ],
+    ]
 
 }, { timestamps: true })
 
