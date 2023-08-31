@@ -4,13 +4,13 @@ const refreshTokenMethod = async (req, res) => {
     const refreshToken = req.cookies?.refreshToken;
 
     if (!refreshToken) {
-        return res.status(401).json({ message: 'Không tìm thấy refresh token' });
+        return res.status(200).json({status:'failure', message: 'Không tìm thấy refresh token' });
     }
 
     const decodedRefreshToken = jwt.verify(refreshToken, process.env.SECRET_REFRESH_KEY);
 
     if (!decodedRefreshToken) {
-        return res.status(403).json({ message: 'Refresh token không hợp lệ' });
+        return res.status(403).json({ status:'failure',message: 'Refresh token không hợp lệ' });
     }
 
     const userPayload = {

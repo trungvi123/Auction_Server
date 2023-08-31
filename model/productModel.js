@@ -80,6 +80,10 @@ const schema = mongoose.Schema({
         type: mongoose.Types.ObjectId,
         ref: 'auction_user',
     },
+    room: { // người bid hiện tại
+        type: mongoose.Types.ObjectId,
+        ref: 'auction_room',
+    },
     bids: [
         {
             lastName: {

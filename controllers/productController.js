@@ -114,6 +114,9 @@ const createProduct = async (req, res) => {
         const result = await newprod.save()
 
         const newroom = await createRoom(result._id, proOwner)
+        await productModel.findByIdAndUpdate(result._id, {
+            room: newroom._id
+        })
 
         const updatedUser = await userModel.findByIdAndUpdate(
             proOwner,
@@ -267,6 +270,58 @@ const deleteImages = async (product, oldImgs = []) => {
 
 }
 
+const updateAuctionStarted = async (req, res) => {
+    try {
+        const id = req.params.id
+        const data = await productModel.findById(id)
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        if (new Date(data.startTime).getTime() <= new Date().getTime()) {
+            const result = await productModel.findByIdAndUpdate(id, {
+                auctionStarted: true
+            }, { new: true })
+            if(!result){
+                return res.status(400).json({ status: 'failure' })
+            }
+            return res.status(200).json({
+                data: result
+            })
+        } else {
+            return res.status(400).json({ status: 'failure' })
+        }
+    } catch (error) {
+        return res.status(500)
+    }
+}
+
+const updateAuctionEnded = async (req, res) => {
+    try {
+        const id = req.params.id
+        const data = await productModel.findById(id)
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        if (new Date(data.endTime).getTime() <= new Date().getTime()) {
+            const result = await productModel.findByIdAndUpdate(id, {
+                auctionEnded: true
+            }, { new: true })
+            if(!result){
+                return res.status(400).json({ status: 'failure' })
+            }
+            return res.status(200).json({
+                data: result
+            })
+        } else {
+            return res.status(400).json({ status: 'failure' })
+        }
+    } catch (error) {
+        return res.status(500)
+    }
+}
+
 
 const getCurrentPriceById_server = async (id) => {
     try {
@@ -307,4 +362,4 @@ const updateBidForProduct_server = async (id, infor) => {
     }
 }
 
-export { createProduct, getBidsById, updateBidForProduct_server, getCurrentPriceById_server, updateCurrentPriceById_server, getCurrentPriceById, getProductById, getProducts, getProductsByOwner, deleteProduct, editProduct }
+export { createProduct,updateAuctionEnded, updateAuctionStarted, getBidsById, updateBidForProduct_server, getCurrentPriceById_server, updateCurrentPriceById_server, getCurrentPriceById, getProductById, getProducts, getProductsByOwner, deleteProduct, editProduct }

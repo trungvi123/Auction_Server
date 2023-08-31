@@ -45,10 +45,13 @@ app.use('/token', tokenRouter)
 app.use('/room', roomRouter)
 
 io.on('connection', (socket) => {
+    socket.on('joinRoom',(data)=>{
+        socket.join(data)
+    })
+
     socket.on('bid_price', async (data) => {
         const idProduct = await getCurrentPriceById_server(data.product)
         if (data.price > parseFloat(idProduct.currentPrice)) {
-
             const upPrice = await updateCurrentPriceById_server(data.product, data.price)
             if (upPrice) {
                 const res = {
@@ -66,7 +69,8 @@ io.on('connection', (socket) => {
             const upBids = await updateBidForProduct_server(data.product, infor)
             const upBids2 = await updateBidsForUserById_server(data.users, data.product)
 
-            socket.broadcast.emit('respone_bids', upBids.bids)
+            io.in(data.room).emit('respone_bids', upBids.bids)
+
         }
     })
 })
