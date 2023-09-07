@@ -65,19 +65,6 @@ const getProducts = async (req, res) => {
     }
 }
 
-const getProductsByOwner = async (req, res) => {
-    try {
-        const id = req.params.id
-
-        const data = await productModel.find({ owner: id })
-        if (!data) {
-            return res.status(400).json({ status: 'failure' })
-        }
-        return res.status(200).json({ status: 'success', data })
-    } catch (err) {
-        return res.status(500)
-    }
-}
 
 const createProduct = async (req, res) => {
     try {
@@ -282,7 +269,7 @@ const updateAuctionStarted = async (req, res) => {
             const result = await productModel.findByIdAndUpdate(id, {
                 auctionStarted: true
             }, { new: true })
-            if(!result){
+            if (!result) {
                 return res.status(400).json({ status: 'failure' })
             }
             return res.status(200).json({
@@ -299,28 +286,104 @@ const updateAuctionStarted = async (req, res) => {
 const updateAuctionEnded = async (req, res) => {
     try {
         const id = req.params.id
+        const { type, idUser } = req.body
         const data = await productModel.findById(id)
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
+        if (type === 'bid') {  // or buy
 
-        if (new Date(data.endTime).getTime() <= new Date().getTime()) {
-            const result = await productModel.findByIdAndUpdate(id, {
-                auctionEnded: true
-            }, { new: true })
-            if(!result){
+            if (new Date(data.endTime).getTime() <= new Date().getTime()) {
+                const result = await productModel.findByIdAndUpdate(id, {
+                    auctionEnded: true,
+                    winner: data.bids[data.bids.length] || data.owner
+                }, { new: true })
+
+                const result2 = await userModel.findByIdAndUpdate(result.winner,
+                    {
+                        $push: { winProduct: result._id }
+                    }
+                    , { new: true }
+                )
+
+                if (!result || !result2) {
+                    return res.status(400).json({ status: 'failure' })
+                }
+
+                return res.status(200).json({
+                    status: 'success',
+                    data: result
+                })
+            } else {
                 return res.status(400).json({ status: 'failure' })
             }
-            return res.status(200).json({
-                data: result
-            })
-        } else {
-            return res.status(400).json({ status: 'failure' })
+        } else { // type = buy
+            if (data.auctionStarted && !data.auctionEnded) { // chir mua khi đã bắt đầu và chưa kết thúc
+                const user = await userModel.findById(idUser)
+                if (!user) {
+                    return res.status(400).json({ status: 'failure', msg: 'User not found' })
+                }
+                const result = await productModel.findByIdAndUpdate(id, {
+                    auctionEnded: true,
+                    sold: true,
+                    soldAt: new Date(),
+                    purchasedBy: user._id
+                }, { new: true })
+
+                const result2 = await userModel.findByIdAndUpdate(user._id,
+                    {
+                        $push: { purchasedProduct: result._id }
+                    }
+                    , { new: true }
+                )
+                if (!result || !result2) {
+                    return res.status(400).json({ status: 'failure', msg: 'Đã xảy ra lỗi!' })
+                }
+
+                return res.status(200).json({
+                    status: 'success',
+                    data: result
+                })
+            }
         }
     } catch (error) {
         return res.status(500)
     }
 }
+
+const approveProduct = async (req, res) => {
+    try {
+        const id = req.params.id
+        const data = await productModel.findByIdAndUpdate(id, {
+            status: 'Đã được duyệt'
+        })
+
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success' })
+
+    } catch (error) {
+        return res.status(500)
+    }
+}
+const refuseProduct = async (req, res) => {
+    try {
+        const id = req.params.id
+        const data = await productModel.findByIdAndUpdate(id, {
+            status: 'Đã bị từ chối'
+        })
+
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success' })
+
+    } catch (error) {
+        return res.status(500)
+    }
+}
+
 
 
 const getCurrentPriceById_server = async (id) => {
@@ -362,4 +425,4 @@ const updateBidForProduct_server = async (id, infor) => {
     }
 }
 
-export { createProduct,updateAuctionEnded, updateAuctionStarted, getBidsById, updateBidForProduct_server, getCurrentPriceById_server, updateCurrentPriceById_server, getCurrentPriceById, getProductById, getProducts, getProductsByOwner, deleteProduct, editProduct }
+export { createProduct, updateAuctionEnded, updateAuctionStarted, getBidsById, updateBidForProduct_server, getCurrentPriceById_server, updateCurrentPriceById_server, getCurrentPriceById, getProductById, getProducts, deleteProduct, editProduct ,approveProduct,refuseProduct}

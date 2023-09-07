@@ -76,7 +76,7 @@ const schema = mongoose.Schema({
         type: mongoose.Types.ObjectId,
         ref: 'auction_user',
     },
-    currentBidder: { // người bid hiện tại
+    winner: { // người win bid
         type: mongoose.Types.ObjectId,
         ref: 'auction_user',
     },

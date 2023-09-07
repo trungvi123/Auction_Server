@@ -204,4 +204,86 @@ const updateBidsForUserById_server = async (id, idProd) => {
     }
 }
 
-export { deleteUserById, updateBidsForUserById_server, getUserById, signIn, signUp, resetPass, changePass };
+const getProductsByOwner = async (req, res) => {
+    // get product thong qua id cua nguoi tao
+    try {
+        const id = req.params.id
+
+        const data = await userModel.findById(id).populate('createdProduct').select('name image status')
+
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success', data: data.createdProduct })
+    } catch (err) {
+        return res.status(500)
+    }
+}
+
+const getPurchasedProducts = async (req, res) => {
+    try {
+        const id = req.params.id
+
+        const data = await userModel.findById(id).populate('purchasedProduct').select('name image status')
+
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success', data: data.purchasedProduct })
+    } catch (err) {
+        return res.status(500)
+    }
+}
+
+const getBidsProducts = async (req, res) => {
+    try {
+        const id = req.params.id
+        const data = await userModel.findById(id).populate('bids').select('name image status')
+
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success', data: data.bids })
+    } catch (err) {
+        return res.status(500)
+    }
+}
+
+const getWinProducts = async (req, res) => {
+    try {
+        const id = req.params.id
+
+        const data = await userModel.findById(id).populate('winProduct').select('name image status')
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success', data: data.winProduct })
+    } catch (err) {
+        return res.status(500)
+    }
+}
+
+const deleteProductHistory = async (req, res) => {
+    try {
+        const id = req.params.id
+        const { type, idProd } = req.body
+        let data
+        if (type === 'win') { // join || buy || win
+            data = await userModel.updateMany({ _id: id }, { $pull: { winProduct: idProd } }, { new: true })
+        } else if (type === 'join') {
+            data = await userModel.updateMany({ _id: id }, { $pull: { bids: idProd } }, { new: true })
+        } else {
+            data = await userModel.updateMany({ _id: id }, { $pull: { purchasedProduct: idProd } }, { new: true })
+        }
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success' })
+    } catch (err) {
+        return res.status(500)
+    }
+}
+
+
+
+export { getBidsProducts, getProductsByOwner, deleteProductHistory, getPurchasedProducts, getWinProducts, deleteUserById, updateBidsForUserById_server, getUserById, signIn, signUp, resetPass, changePass };

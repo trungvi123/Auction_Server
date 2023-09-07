@@ -20,7 +20,7 @@ const isImage = (req, file, callback) => {
 
 const upload = multer({
     storage: storage,
-    fileFilter: isImage
+    fileFilter: isImage,
 });
 
 export default upload

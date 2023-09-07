@@ -54,6 +54,12 @@ const schema = mongoose.Schema({
             ref: 'auction_product'
         }
     ],
+    winProduct: [
+        {
+            type: mongoose.Types.ObjectId,
+            ref: 'auction_product'
+        }
+    ],
     createdProduct: [
         {
             type: mongoose.Types.ObjectId,
