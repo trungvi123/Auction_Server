@@ -10,22 +10,6 @@ const schema = mongoose.Schema({
         type: String,
         default: ''
     },
-    basePrice: {
-        type: mongoose.Types.Decimal128,
-        required: true,
-    },
-    price: {
-        type: mongoose.Types.Decimal128,
-        require: true
-    },
-    currentPrice: {
-        type: mongoose.Types.Decimal128,
-        default: 0
-    },
-    stepPrice: {
-        type: mongoose.Types.Decimal128,
-        default: 0
-    },
     startTime: {
         type: String,
         require: true
@@ -49,7 +33,7 @@ const schema = mongoose.Schema({
         type: mongoose.Types.ObjectId,
         ref: 'auction_categogy',
     },
-    auctionStarted: { // admin duyet thi se bat dau
+    freeProductStarted: { // admin duyet thi se bat dau
         type: Boolean,
         default: false,
     },
@@ -60,7 +44,7 @@ const schema = mongoose.Schema({
         // Đã từ chối
         // Yêu cầu duyệt lại
     },
-    auctionEnded: { // het thoi gian sẽ là true
+    freeProductEnded: { // het thoi gian sẽ là true
         type: Boolean,
         default: false,
     },
@@ -73,43 +57,15 @@ const schema = mongoose.Schema({
         ref: 'auction_user',
         require: true
     },
-    purchasedBy: { // người mua
+    accepter: { // người nhận
         type: mongoose.Types.ObjectId,
         ref: 'auction_user',
     },
-    winner: { // người win bid
-        type: mongoose.Types.ObjectId,
-        ref: 'auction_user',
-    },
-    room: { // người bid hiện tại
-        type: mongoose.Types.ObjectId,
-        ref: 'auction_room',
-    },
-    bids: [
-        {
-            lastName: {
-                type: String,
-                default: 'Ẩn danh'
-            },
-            user: {
-                type: mongoose.Types.ObjectId,
-                ref: 'auction_user',
-                // required: true,
-            },
-            price: {
-                type: mongoose.Types.Decimal128,
-                // required: true,
-            },
-            time: {
-                type: Date,
-                default: Date.now,
-            },
-        },
-    ],
     isFree: {
         type: Boolean,
-        default: false
+        default: true
     }
+
 }, { timestamps: true })
 
 export const productModel = mongoose.model('auction_product', schema)

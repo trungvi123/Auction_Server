@@ -11,6 +11,68 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 
+
+
+const getQuatityProductByMonth = async (req, res) => {
+
+    try {
+        const yearr = new Date().getFullYear()
+        const months = [
+            '01', '02', '03', '04', '05', '06',
+            '07', '08', '09', '10', '11', '12'
+        ];
+        const result = await productModel.aggregate([
+            {
+                $match: {
+                    createdAt: {
+                        $gte: new Date(`${yearr}-01-01T00:00:00.000Z`), // Bắt đầu từ đầu năm
+                        $lt: new Date(`${yearr + 1}-01-01T00:00:00.000Z`), // Kết thúc vào đầu năm tiếp theo
+                    },
+                },
+            },
+            {
+                $project: {
+                    createdAt: 1, // Lấy trường createdAt
+                    yearMonth: {
+                        $dateToString: {
+                            format: '%Y-%m',
+                            date: '$createdAt',
+                            timezone: '+07:00', // Điều chỉnh múi giờ theo định dạng của bạn
+                        },
+                    },
+                },
+            },
+            {
+                $group: {
+                    _id: '$yearMonth',
+                    count: { $sum: 1 },
+                },
+            },
+            {
+                $sort: { _id: 1 }, // Sắp xếp theo thời gian tạo
+            },
+        ])
+
+        const data = {};
+        result.forEach((item) => {
+            data[item._id] = item.count;
+        });
+
+        // Điền giá trị 0 cho các tháng không có dữ liệu
+        months.forEach((month) => {
+            if (!data[yearr + '-' + month]) {
+                data[yearr + '-' + month] = 0;
+            }
+        });
+
+        return res.status(200).json({ status: 'success', data: data })
+
+    } catch (error) {
+        return res.status(500)
+
+    }
+}
+
 const getProductById = async (req, res) => {
     try {
         const id = req.params.id
@@ -39,6 +101,19 @@ const getCurrentPriceById = async (req, res) => {
     }
 }
 
+const getProductsByStatus = async (req, res) => {
+    try {
+        const { status } = req.body
+        const data = await productModel.find({ status: status })
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success', data })
+    } catch (err) {
+        return res.status(500)
+    }
+}
+
 const getBidsById = async (req, res) => {
     try {
         const id = req.params.id
@@ -54,17 +129,21 @@ const getBidsById = async (req, res) => {
 
 const getProducts = async (req, res) => {
     try {
-        const quantity = parseInt(req.params.quantity)
-        const data = await productModel.find().limit(quantity) || 5
+        const quantity = req.params?.quantity ? parseInt(req.params?.quantity) : null
+        if (quantity) {
+            const data = await productModel.find({ status: 'Đã được duyệt' }).limit(quantity)
+            return res.status(200).json({ status: 'success', data })
+        }
+        const data = await productModel.find({ status: 'Đã được duyệt' })
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
         return res.status(200).json({ status: 'success', data })
+
     } catch (error) {
-        return res.status(500)
+        return res.status(500) 
     }
 }
-
 
 const createProduct = async (req, res) => {
     try {
@@ -371,7 +450,7 @@ const refuseProduct = async (req, res) => {
     try {
         const id = req.params.id
         const data = await productModel.findByIdAndUpdate(id, {
-            status: 'Đã bị từ chối'
+            status: 'Đã từ chối'
         })
 
         if (!data) {
@@ -383,8 +462,22 @@ const refuseProduct = async (req, res) => {
         return res.status(500)
     }
 }
+const approveAgainProduct = async (req, res) => {
+    try {
+        const id = req.params.id
+        const data = await productModel.findByIdAndUpdate(id, {
+            status: 'Yêu cầu duyệt lại'
+        })
 
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success' })
 
+    } catch (error) {
+        return res.status(500)
+    }
+}
 
 const getCurrentPriceById_server = async (id) => {
     try {
@@ -425,4 +518,11 @@ const updateBidForProduct_server = async (id, infor) => {
     }
 }
 
-export { createProduct, updateAuctionEnded, updateAuctionStarted, getBidsById, updateBidForProduct_server, getCurrentPriceById_server, updateCurrentPriceById_server, getCurrentPriceById, getProductById, getProducts, deleteProduct, editProduct ,approveProduct,refuseProduct}
+export {
+    getQuatityProductByMonth, getProductsByStatus, createProduct,
+    updateAuctionEnded, updateAuctionStarted, getBidsById,
+    updateBidForProduct_server, getCurrentPriceById_server,
+    updateCurrentPriceById_server, getCurrentPriceById, getProductById,
+    getProducts, deleteProduct, editProduct, approveProduct,
+    refuseProduct,approveAgainProduct
+}

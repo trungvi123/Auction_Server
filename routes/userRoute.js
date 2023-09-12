@@ -2,8 +2,8 @@ import express from "express";
 import {
   getUserById,
   deleteUserById,
-  signIn,
-  signUp, resetPass, changePass, getBidsProducts, deleteProductHistory, getWinProducts, getProductsByOwner, getPurchasedProducts
+  signIn,getRefuseProducts,
+  signUp, resetPass, changePass, getBidsProducts,getQuatityUsersByMonth, deleteProductHistory, getWinProducts, getProductsByOwner, getPurchasedProducts
 } from "../controllers/userController.js";
 import { checkAccessToken, checkAdminAccessToken } from "../middleware/authToken.js";
 import { checkSignUp, checkSignIn, checkEmail } from '../middleware/checkRequest.js'
@@ -11,12 +11,15 @@ import { checkSignUp, checkSignIn, checkEmail } from '../middleware/checkRequest
 
 const router = express.Router();
 
+router.get('/quatityUsers', getQuatityUsersByMonth);
 
-router.get('/:id', getUserById);
 router.get('/purchasedProducts/:id', checkAccessToken, getPurchasedProducts);
 router.get('/bidsProducts/:id', checkAccessToken, getBidsProducts);
+router.get('/refuseProducts/:id', checkAccessToken, getRefuseProducts);
+
 router.get('/winProducts/:id', checkAccessToken, getWinProducts);
 router.get('/owner/:id', checkAccessToken, getProductsByOwner);
+router.get('/:id', getUserById);
 
 
 router.post('/signUp', checkSignUp, signUp);

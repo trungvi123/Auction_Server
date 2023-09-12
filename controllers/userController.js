@@ -3,6 +3,8 @@ import { validationResult } from "express-validator";
 import jwt from 'jsonwebtoken'
 
 import { userModel } from "../model/userModel.js";
+import { productModel } from "../model/productModel.js";
+
 import configMail from "../utils/configMail.js";
 
 
@@ -239,11 +241,24 @@ const getBidsProducts = async (req, res) => {
     try {
         const id = req.params.id
         const data = await userModel.findById(id).populate('bids').select('name image status')
-
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
         return res.status(200).json({ status: 'success', data: data.bids })
+    } catch (err) {
+        return res.status(500)
+    }
+}
+
+const getRefuseProducts = async (req, res) => {
+    try {
+        const id = req.params.id
+        const data = await productModel.find({ owner: id, status: 'Đã từ chối' })
+
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success', data: data })
     } catch (err) {
         return res.status(500)
     }
@@ -284,6 +299,70 @@ const deleteProductHistory = async (req, res) => {
     }
 }
 
+const getQuatityUsersByMonth = async (req, res) => {
+    try {
+        try {
+            const yearr = new Date().getFullYear()
+            const months = [
+                '01', '02', '03', '04', '05', '06',
+                '07', '08', '09', '10', '11', '12'
+            ];
+            const result = await userModel.aggregate([
+                {
+                    $match: {
+                        createdAt: {
+                            $gte: new Date(`${yearr}-01-01T00:00:00.000Z`), // Bắt đầu từ đầu năm
+                            $lt: new Date(`${yearr + 1}-01-01T00:00:00.000Z`), // Kết thúc vào đầu năm tiếp theo
+                        },
+                    },
+                },
+                {
+                    $project: {
+                        createdAt: 1, // Lấy trường createdAt
+                        yearMonth: {
+                            $dateToString: {
+                                format: '%Y-%m',
+                                date: '$createdAt',
+                                timezone: '+07:00', // Điều chỉnh múi giờ theo định dạng của bạn
+                            },
+                        },
+                    },
+                },
+                {
+                    $group: {
+                        _id: '$yearMonth',
+                        count: { $sum: 1 },
+                    },
+                },
+                {
+                    $sort: { _id: 1 }, // Sắp xếp theo thời gian tạo
+                },
+            ])
+
+            const data = {};
+            result.forEach((item) => {
+                data[item._id] = item.count;
+            });
+
+            // Điền giá trị 0 cho các tháng không có dữ liệu
+            months.forEach((month) => {
+                if (!data[yearr + '-' + month]) {
+                    data[yearr + '-' + month] = 0;
+                }
+            });
+
+            return res.status(200).json({ status: 'success', data: data })
+
+        } catch (error) {
+            return res.status(500)
+
+        }
+
+    } catch (error) {
+        return res.status(500)
+
+    }
+}
 
 
-export { getBidsProducts, getProductsByOwner, deleteProductHistory, getPurchasedProducts, getWinProducts, deleteUserById, updateBidsForUserById_server, getUserById, signIn, signUp, resetPass, changePass };
+export { getQuatityUsersByMonth, getRefuseProducts, getBidsProducts, getProductsByOwner, deleteProductHistory, getPurchasedProducts, getWinProducts, deleteUserById, updateBidsForUserById_server, getUserById, signIn, signUp, resetPass, changePass };

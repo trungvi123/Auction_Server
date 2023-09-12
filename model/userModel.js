@@ -78,7 +78,8 @@ const schema = mongoose.Schema({
             ref: 'auction_room',
         }
     ],
-})
+
+}, { timestamps: true })
 
 export const userModel = mongoose.model('auction_user', schema)
 
