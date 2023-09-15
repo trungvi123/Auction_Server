@@ -15,6 +15,12 @@ const schema = mongoose.Schema({
             type: mongoose.Types.ObjectId,
             ref:'auction_product'
         }
+    ],
+    freeProducts:[
+        {
+            type: mongoose.Types.ObjectId,
+            ref:'auction_freeProduct'
+        }
     ]
   },
   { timestamps: true })

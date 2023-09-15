@@ -8,6 +8,10 @@ import productRouter from './routes/productRoute.js'
 import categoryRouter from './routes/categoryRoute.js'
 import tokenRouter from './routes/tokenRoute.js'
 import roomRouter from './routes/roomRoute.js'
+import freeProductRouter from './routes/freeProductRoute.js'
+import paymentRouter from './routes/paymentRoute.js'
+
+
 
 import cookieParser from 'cookie-parser'
 import { Server } from 'socket.io'
@@ -40,9 +44,12 @@ app.use(cookieParser());
 app.use(bodyparser.urlencoded({ extended: true }));
 app.use('/user', userRouter)
 app.use('/product', productRouter)
+app.use('/freeProduct', freeProductRouter)
+
 app.use('/category', categoryRouter)
 app.use('/token', tokenRouter)
 app.use('/room', roomRouter)
+app.use('/payment',paymentRouter)
 
 io.on('connection', (socket) => {
     socket.on('joinRoom',(data)=>{

@@ -10,20 +10,6 @@ const schema = mongoose.Schema({
         type: String,
         default: ''
     },
-    startTime: {
-        type: String,
-        require: true
-    },
-    endTime: {
-        type: String
-    },
-    duration: {
-        type: Number,
-        require: true
-    },
-    soldAt: {
-        type: String,
-    },
     images: [
         {
             type: String,
@@ -33,20 +19,12 @@ const schema = mongoose.Schema({
         type: mongoose.Types.ObjectId,
         ref: 'auction_categogy',
     },
-    freeProductStarted: { // admin duyet thi se bat dau
-        type: Boolean,
-        default: false,
-    },
     status: {
         type: String,
         default: 'Đang chờ duyệt',
         // Đã được duyệt
         // Đã từ chối
         // Yêu cầu duyệt lại
-    },
-    freeProductEnded: { // het thoi gian sẽ là true
-        type: Boolean,
-        default: false,
     },
     sold: {
         type: Boolean,
@@ -57,10 +35,27 @@ const schema = mongoose.Schema({
         ref: 'auction_user',
         require: true
     },
-    accepter: { // người nhận
-        type: mongoose.Types.ObjectId,
-        ref: 'auction_user',
-    },
+    accepterList: [
+        {
+            lastName: {
+                type: String,
+                default: 'Ẩn danh'
+            },
+            user: {
+                type: mongoose.Types.ObjectId,
+                ref: 'auction_user',
+                // required: true,
+            },
+            message: {
+                type: String,
+                // required: true,
+            },
+            time: {
+                type: Date,
+                default: Date.now,
+            },
+        },
+    ],
     isFree: {
         type: Boolean,
         default: true
@@ -68,4 +63,4 @@ const schema = mongoose.Schema({
 
 }, { timestamps: true })
 
-export const productModel = mongoose.model('auction_product', schema)
+export const freeProductModel = mongoose.model('auction_freeProduct', schema)

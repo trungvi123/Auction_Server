@@ -85,6 +85,10 @@ const schema = mongoose.Schema({
         type: mongoose.Types.ObjectId,
         ref: 'auction_room',
     },
+    paid: {
+        type: Boolean,
+        default: false
+    },
     bids: [
         {
             lastName: {

@@ -141,7 +141,7 @@ const getProducts = async (req, res) => {
         return res.status(200).json({ status: 'success', data })
 
     } catch (error) {
-        return res.status(500) 
+        return res.status(500)
     }
 }
 
@@ -430,6 +430,20 @@ const updateAuctionEnded = async (req, res) => {
     }
 }
 
+const updatePaid = async (productId) => {
+    try {
+        const data = await productModel.findByIdAndUpdate(productId, {
+            paid: true
+        }, { new: true })
+        if (!data) {
+            return false
+        }
+        return true
+    } catch (error) {
+        return false
+    }
+}
+
 const approveProduct = async (req, res) => {
     try {
         const id = req.params.id
@@ -520,9 +534,9 @@ const updateBidForProduct_server = async (id, infor) => {
 
 export {
     getQuatityProductByMonth, getProductsByStatus, createProduct,
-    updateAuctionEnded, updateAuctionStarted, getBidsById,
+    updateAuctionEnded, updateAuctionStarted, getBidsById, updatePaid,
     updateBidForProduct_server, getCurrentPriceById_server,
     updateCurrentPriceById_server, getCurrentPriceById, getProductById,
     getProducts, deleteProduct, editProduct, approveProduct,
-    refuseProduct,approveAgainProduct
+    refuseProduct, approveAgainProduct
 }
