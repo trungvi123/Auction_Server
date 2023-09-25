@@ -49,6 +49,13 @@ const schema = mongoose.Schema({
         type: mongoose.Types.ObjectId,
         ref: 'auction_categogy',
     },
+    slugCase:{
+        type:String,
+        default:'sap-dien-ra'
+        //dang-dien-ra
+        //sap-ket-thuc
+        //da-ket-thuc
+    },
     auctionStarted: { // admin duyet thi se bat dau
         type: Boolean,
         default: false,
@@ -113,6 +120,9 @@ const schema = mongoose.Schema({
     isFree: {
         type: Boolean,
         default: false
+    },
+    page: {
+        type: Number
     }
 }, { timestamps: true })
 

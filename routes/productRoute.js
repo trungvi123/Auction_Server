@@ -2,7 +2,7 @@ import express from "express";
 import {
     approveProduct, refuseProduct, createProduct, updateAuctionEnded,
     getQuatityProductByMonth, getProductById, getBidsById, updateAuctionStarted,
-    getProducts, getCurrentPriceById, deleteProduct, editProduct,getProductsByStatus,approveAgainProduct
+    getProducts, getCurrentPriceById, deleteProduct, editProduct,getProductsByStatus,approveAgainProduct,getAllProducts
 } from "../controllers/productController.js";
 import { checkAccessToken, checkAdminAccessToken } from "../middleware/authToken.js";
 import { checkProduct } from "../middleware/checkRequest.js";
@@ -14,7 +14,9 @@ const router = express.Router();
 router.get('/quatityProduct', getQuatityProductByMonth);
 router.get('/price/:id', getCurrentPriceById);
 router.get('/bids/:id', getBidsById);
-router.get('/all/:quantity?', getProducts);
+router.get('/all/', getAllProducts);
+router.get('/page/:page', getProducts);
+
 router.get('/edit/auctionStarted/:id', updateAuctionStarted)
 router.get('/:id', getProductById);
 

@@ -27,7 +27,13 @@ export const checkProduct = [
     body('duration', 'Invalid duration').trim().not().isEmpty(),
     body('owner', 'Invalid owner').trim().not().isEmpty(),
     body('price', 'Invalid price').trim().not().isEmpty(),
-    body('owner', 'Invalid owner').trim().not().isEmpty(),
     body('endTime', 'Invalid endTime').trim().not().isEmpty(),
+    body('category', 'Invalid category').trim().not().isEmpty(),
+]
+
+export const checkFreeProduct = [
+    body('name', 'Invalid name').trim().not().isEmpty(),
+    body('duration', 'Invalid duration').trim().not().isEmpty(),
+    body('owner', 'Invalid owner').trim().not().isEmpty(),
     body('category', 'Invalid category').trim().not().isEmpty(),
 ]

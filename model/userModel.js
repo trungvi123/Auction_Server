@@ -54,6 +54,18 @@ const schema = mongoose.Schema({
             ref: 'auction_product'
         }
     ],
+    participateReceiving: [
+        {
+            type: mongoose.Types.ObjectId,
+            ref: 'auction_freeProduct'
+        }
+    ],
+    receivedProduct: [
+        {
+            type: mongoose.Types.ObjectId,
+            ref: 'auction_freeProduct'
+        }
+    ],
     winProduct: [
         {
             type: mongoose.Types.ObjectId,

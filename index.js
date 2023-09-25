@@ -68,7 +68,7 @@ io.on('connection', (socket) => {
                 }
                 socket.broadcast.emit('respone_bid_price', res)
             }
-            const infor = {
+            const infor = { 
                 user: data.users,
                 price: data.price,
                 lastName: data.lastName
@@ -86,15 +86,15 @@ const PORT = process.env.PORT || 6000
 const URI = process.env.URI_KEY
 
 mongoose.set("strictQuery", true);
-
+server.listen(PORT, () => {
+        console.log(`server run ${PORT}`);
+    })
 mongoose.connect(URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true
 }).then(() => {
     console.log('connected db');
-    server.listen(PORT, () => {
-        console.log(`server run ${PORT}`);
-    })
+    
 }).catch(() => {
     console.log('can not connect db');
 })

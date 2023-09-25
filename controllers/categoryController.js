@@ -14,7 +14,7 @@ const getCategoryById = async (req, res) => {
 
 const getAllCategory = async (req, res) => {
 
-    const category = await categoryModel.find().select('name _id')
+    const category = await categoryModel.find().select('name _id link')
 
     if (!category) {
         return res.status(400).json({ status: 'failure' })

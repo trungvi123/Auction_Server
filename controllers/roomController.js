@@ -1,3 +1,4 @@
+import mongoose from "mongoose"
 import { productModel } from "../model/productModel.js"
 import { roomModel } from "../model/roomModel.js"
 import { userModel } from "../model/userModel.js"
@@ -32,6 +33,8 @@ const getRoomByIdProd = async (req, res) => {
 }
 
 const joinRoom = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
         const { idProd, idUser, idRoom } = req.body
         const idp = await productModel.findById(idProd).select('_id')
@@ -54,7 +57,7 @@ const joinRoom = async (req, res) => {
                 $push: { users: idu }
             },
             { new: true }
-        )
+        ).session(session)
 
         await userModel.findByIdAndUpdate(
             idUser,
@@ -64,15 +67,19 @@ const joinRoom = async (req, res) => {
             {
                 new: true
             }
-        )
+        ).session(session)
 
         if (!idr) {
             return res.status(400).json({ status: 'failure', msg: 'Không thể tham gia' });
         }
+        await session.commitTransaction();
+        session.endSession();
         return res.status(200).json({ status: 'success', msg: 'Tham gia thành công' });
 
 
     } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
         return res.status(500).json({ status: 'failure', error })
     }
 }

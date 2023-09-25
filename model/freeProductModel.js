@@ -26,7 +26,7 @@ const schema = mongoose.Schema({
         // Đã từ chối
         // Yêu cầu duyệt lại
     },
-    sold: {
+    outOfStock: {
         type: Boolean,
         default: false,
     },
@@ -35,19 +35,21 @@ const schema = mongoose.Schema({
         ref: 'auction_user',
         require: true
     },
+    receiver: {
+        type: mongoose.Types.ObjectId,
+        ref: 'auction_user'
+    },
     accepterList: [
         {
             lastName: {
                 type: String,
-                default: 'Ẩn danh'
+            },
+            email: {
+                type: String
             },
             user: {
                 type: mongoose.Types.ObjectId,
                 ref: 'auction_user',
-                // required: true,
-            },
-            message: {
-                type: String,
                 // required: true,
             },
             time: {
@@ -59,6 +61,16 @@ const schema = mongoose.Schema({
     isFree: {
         type: Boolean,
         default: true
+    },
+    page: {
+        type: Number
+    },
+    slugCase: {
+        type: String,
+        default: 'sap-dien-ra'
+        //dang-dien-ra
+        //sap-ket-thuc
+        //da-ket-thuc
     }
 
 }, { timestamps: true })

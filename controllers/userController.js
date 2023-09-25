@@ -6,6 +6,8 @@ import { userModel } from "../model/userModel.js";
 import { productModel } from "../model/productModel.js";
 
 import configMail from "../utils/configMail.js";
+import mongoose from "mongoose";
+import { freeProductModel } from "../model/freeProductModel.js";
 
 
 const getUserById = async (req, res) => {
@@ -84,7 +86,9 @@ const signIn = async (req, res) => {
             _id: user._id,
             email,
             role: user.role || 'user',
-            lastName: user.lastName
+            lastName: user.lastName,
+            productPermission: user.createdProduct,
+            freeProductPermission: user.createdFreeProduct
         }
 
         const accessToken = jwt.sign(payload, process.env.SECRET_KEY, { expiresIn: '1d' })
@@ -222,6 +226,22 @@ const getProductsByOwner = async (req, res) => {
     }
 }
 
+const getFreeProductsByOwner = async (req, res) => {
+    // get product thong qua id cua nguoi tao
+    try {
+        const id = req.params.id
+
+        const data = await userModel.findById(id).populate('createdFreeProduct').select('name image status')
+
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success', data: data.createdFreeProduct })
+    } catch (err) {
+        return res.status(500)
+    }
+}
+
 const getPurchasedProducts = async (req, res) => {
     try {
         const id = req.params.id
@@ -232,6 +252,36 @@ const getPurchasedProducts = async (req, res) => {
             return res.status(400).json({ status: 'failure' })
         }
         return res.status(200).json({ status: 'success', data: data.purchasedProduct })
+    } catch (err) {
+        return res.status(500)
+    }
+}
+
+const getReceivedProducts = async (req, res) => {
+    try {
+        const id = req.params.id
+
+        const data = await userModel.findById(id).populate('receivedProduct').select('name image status')
+
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success', data: data.receivedProduct })
+    } catch (err) {
+        return res.status(500)
+    }
+}
+
+const getParticipateReceiving = async (req, res) => {
+    try {
+        const id = req.params.id
+
+        const data = await userModel.findById(id).populate('participateReceiving').select('name image status')
+
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success', data: data.participateReceiving })
     } catch (err) {
         return res.status(500)
     }
@@ -264,6 +314,20 @@ const getRefuseProducts = async (req, res) => {
     }
 }
 
+const getRefuseFreeProducts = async (req, res) => {
+    try {
+        const id = req.params.id
+        const data = await freeProductModel.find({ owner: id, status: 'Đã từ chối' })
+
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success', data: data })
+    } catch (err) {
+        return res.status(500)
+    }
+}
+
 const getWinProducts = async (req, res) => {
     try {
         const id = req.params.id
@@ -279,22 +343,37 @@ const getWinProducts = async (req, res) => {
 }
 
 const deleteProductHistory = async (req, res) => {
+    const session = await mongoose.startSession()
+    session.startTransaction()
     try {
         const id = req.params.id
-        const { type, idProd } = req.body
+        const { type, idProd, isFree } = req.body
         let data
-        if (type === 'win') { // join || buy || win
-            data = await userModel.updateMany({ _id: id }, { $pull: { winProduct: idProd } }, { new: true })
-        } else if (type === 'join') {
-            data = await userModel.updateMany({ _id: id }, { $pull: { bids: idProd } }, { new: true })
+        if (isFree) {
+            if (type === 'participate') { // participate || received
+                data = await userModel.updateMany({ _id: id }, { $pull: { participateReceiving: idProd } }, { new: true }).session(session)
+            } else {
+                data = await userModel.updateMany({ _id: id }, { $pull: { receivedProduct: idProd } }, { new: true }).session(session)
+            }
         } else {
-            data = await userModel.updateMany({ _id: id }, { $pull: { purchasedProduct: idProd } }, { new: true })
+            if (type === 'win') { // join || buy || win || 
+                data = await userModel.updateMany({ _id: id }, { $pull: { winProduct: idProd } }, { new: true }).session(session)
+            } else if (type === 'join') {
+                data = await userModel.updateMany({ _id: id }, { $pull: { bids: idProd } }, { new: true }).session(session)
+            } else {
+                data = await userModel.updateMany({ _id: id }, { $pull: { purchasedProduct: idProd } }, { new: true }).session(session)
+            }
+            if (!data) {
+                return res.status(400).json({ status: 'failure' })
+            }
         }
-        if (!data) {
-            return res.status(400).json({ status: 'failure' })
-        }
+
+        await session.commitTransaction()
+        session.endSession()
         return res.status(200).json({ status: 'success' })
     } catch (err) {
+        await session.abortTransaction()
+        session.endSession()
         return res.status(500)
     }
 }
@@ -365,4 +444,4 @@ const getQuatityUsersByMonth = async (req, res) => {
 }
 
 
-export { getQuatityUsersByMonth, getRefuseProducts, getBidsProducts, getProductsByOwner, deleteProductHistory, getPurchasedProducts, getWinProducts, deleteUserById, updateBidsForUserById_server, getUserById, signIn, signUp, resetPass, changePass };
+export { getQuatityUsersByMonth, getParticipateReceiving,getRefuseFreeProducts, getRefuseProducts, getBidsProducts, getReceivedProducts, getFreeProductsByOwner, getProductsByOwner, deleteProductHistory, getPurchasedProducts, getWinProducts, deleteUserById, updateBidsForUserById_server, getUserById, signIn, signUp, resetPass, changePass };
