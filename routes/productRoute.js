@@ -2,7 +2,7 @@ import express from "express";
 import {
     approveProduct, refuseProduct, createProduct, updateAuctionEnded,
     getQuatityProductByMonth, getProductById, getBidsById, updateAuctionStarted,
-    getProducts, getCurrentPriceById, deleteProduct, editProduct,getProductsByStatus,approveAgainProduct,getAllProducts
+    getProducts, getCurrentPriceById, deleteProduct, editProduct, getProductsByStatus, approveAgainProduct, getAllProducts, search
 } from "../controllers/productController.js";
 import { checkAccessToken, checkAdminAccessToken } from "../middleware/authToken.js";
 import { checkProduct } from "../middleware/checkRequest.js";
@@ -24,7 +24,7 @@ router.post('/delete/:id', checkAccessToken, deleteProduct);
 router.post('/edit/auctionEnded/:id', updateAuctionEnded)
 router.post('/status', getProductsByStatus);
 router.post('/create', checkAccessToken, checkProduct, upload.array('images', 10), createProduct);
-
+router.post('/search', checkAccessToken, search)
 
 router.patch('/edit', checkAccessToken, checkProduct, upload.array('images', 10), editProduct);
 router.patch('/edit/approveProduct/:id', approveProduct) // doi lai thanh adminToken khi test xong

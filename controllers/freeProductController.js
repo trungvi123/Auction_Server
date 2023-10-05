@@ -96,7 +96,7 @@ const getProductById = async (req, res) => {
     try {
         const id = req.params.id
 
-        const data = await freeProductModel.findById(id)
+        const data = await freeProductModel.findById(id).populate('category')
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
@@ -265,7 +265,8 @@ const confirmSharingProduct = async (req, res) => {
             const update = await freeProductModel.findByIdAndUpdate(idProduct, {
                 receiver: user._id,
                 outOfStock: true,
-                slugCase: 'da-ket-thuc'
+                stateSlug: 'da-ket-thuc',
+                state: 'Đã kết thúc'
             }, { new: true })
 
             if (!update) {

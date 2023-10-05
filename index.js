@@ -49,16 +49,26 @@ app.use('/freeProduct', freeProductRouter)
 app.use('/category', categoryRouter)
 app.use('/token', tokenRouter)
 app.use('/room', roomRouter)
-app.use('/payment',paymentRouter)
+app.use('/payment', paymentRouter)
 
 io.on('connection', (socket) => {
-    socket.on('joinRoom',(data)=>{
+    socket.on('joinRoom', (data) => {
         socket.join(data)
     })
 
     socket.on('bid_price', async (data) => {
         const idProduct = await getCurrentPriceById_server(data.product)
-        if (data.price > parseFloat(idProduct.currentPrice)) {
+        const auctionTypeSlug = data.auctionTypeSlug
+        let check = false
+        if (auctionTypeSlug === 'dau-gia-xuoi' && data.price > parseFloat(idProduct.currentPrice)) {
+            check = true
+        }
+
+        if (auctionTypeSlug === 'dau-gia-nguoc' && data.price < parseFloat(idProduct.currentPrice)) {
+            check = true
+        }
+
+        if (check) {
             const upPrice = await updateCurrentPriceById_server(data.product, data.price)
             if (upPrice) {
                 const res = {
@@ -68,16 +78,15 @@ io.on('connection', (socket) => {
                 }
                 socket.broadcast.emit('respone_bid_price', res)
             }
-            const infor = { 
+            const infor = {
                 user: data.users,
                 price: data.price,
                 lastName: data.lastName
             }
             const upBids = await updateBidForProduct_server(data.product, infor)
-            const upBids2 = await updateBidsForUserById_server(data.users, data.product)
+            await updateBidsForUserById_server(data.users, data.product)
 
             io.in(data.room).emit('respone_bids', upBids.bids)
-
         }
     })
 })
@@ -87,14 +96,14 @@ const URI = process.env.URI_KEY
 
 mongoose.set("strictQuery", true);
 server.listen(PORT, () => {
-        console.log(`server run ${PORT}`);
-    })
+    console.log(`server run ${PORT}`);
+})
 mongoose.connect(URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true
 }).then(() => {
     console.log('connected db');
-    
+
 }).catch(() => {
     console.log('can not connect db');
 })

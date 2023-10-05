@@ -65,12 +65,16 @@ const schema = mongoose.Schema({
     page: {
         type: Number
     },
-    slugCase: {
+    stateSlug: {
         type: String,
         default: 'sap-dien-ra'
         //dang-dien-ra
         //sap-ket-thuc
         //da-ket-thuc
+    },
+    state: {
+        type: String,
+        default: 'Sắp diễn ra'
     }
 
 }, { timestamps: true })

@@ -6,7 +6,15 @@ const schema = mongoose.Schema({
         type: String,
         required: true,
     },
+    lazyName: {
+        type: String,
+        required: true,
+    },
     description: {
+        type: String,
+        default: ''
+    },
+    lazyDescription: {
         type: String,
         default: ''
     },
@@ -40,6 +48,10 @@ const schema = mongoose.Schema({
     soldAt: {
         type: String,
     },
+    sold: {
+        type: Boolean,
+        default: false,
+    },
     images: [
         {
             type: String,
@@ -49,14 +61,23 @@ const schema = mongoose.Schema({
         type: mongoose.Types.ObjectId,
         ref: 'auction_categogy',
     },
-    slugCase:{
-        type:String,
-        default:'sap-dien-ra'
+    stateSlug: {
+        type: String,
+        default: 'sap-dien-ra'
         //dang-dien-ra
-        //sap-ket-thuc
         //da-ket-thuc
     },
+    state: {
+        type: String,
+        default: 'Sắp diễn ra'
+        // Đang diễn ra
+        // Đã kết thúc
+    },
     auctionStarted: { // admin duyet thi se bat dau
+        type: Boolean,
+        default: false,
+    },
+    auctionEnded: { // het thoi gian sẽ là true
         type: Boolean,
         default: false,
     },
@@ -67,13 +88,18 @@ const schema = mongoose.Schema({
         // Đã từ chối
         // Yêu cầu duyệt lại
     },
-    auctionEnded: { // het thoi gian sẽ là true
-        type: Boolean,
-        default: false,
+    statusPayment: {
+        type: String,
+        default: 'Chưa thanh toán',
+        // Đã thanh toán
     },
-    sold: {
-        type: Boolean,
-        default: false,
+    statusPaymentSlug: {
+        type: String,
+        default: 'chua-thanh-toan',
+        // Đã thanh toán
+    },
+    outOfDatePayment: {
+        type: String,
     },
     owner: { // người tạo 
         type: mongoose.Types.ObjectId,
@@ -117,6 +143,17 @@ const schema = mongoose.Schema({
             },
         },
     ],
+    auctionTypeSlug: {
+        type: String,
+        default: 'dau-gia-xuoi',
+        // dau-gia-nguoc
+    },
+    checkoutTypeSlug: {
+        type: String,
+        default: 'cod',
+        // payment
+        // all
+    },
     isFree: {
         type: Boolean,
         default: false
