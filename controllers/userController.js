@@ -8,19 +8,60 @@ import { productModel } from "../model/productModel.js";
 import configMail from "../utils/configMail.js";
 import mongoose from "mongoose";
 import { freeProductModel } from "../model/freeProductModel.js";
+import { reportModel } from "../model/reportModel.js";
 
 
 const getUserById = async (req, res) => {
-    const idUser = req.params.id
+    try {
+        const idUser = req.params.id
 
-    const user = await userModel.findById(idUser).select('_id firstName lastName email address phoneNumber')
+        const user = await userModel.findById(idUser).select('_id firstName lastName email address phoneNumber')
 
-    if (!user) {
-        return res.status(400).json({ status: 'failure', errors: { msg: 'thất bại!' } })
+        if (!user) {
+            return res.status(400).json({ status: 'failure', errors: { msg: 'thất bại!' } })
+        }
+        return res.status(200).json({ status: 'success', user })
+    } catch (error) {
+        return res.status(500).json({ status: 'failure' });
     }
-    return res.status(200).json({ status: 'success', user })
-
 };
+
+const getAllUser = async (req, res) => {
+    try {
+        const user = await userModel.find().select('_id firstName lastName email phoneNumber warnLevel')
+
+        if (!user) {
+            return res.status(400).json({ status: 'failure', errors: { msg: 'thất bại!' } })
+        }
+        return res.status(200).json({ status: 'success', data: user })
+    } catch (error) {
+        return res.status(500).json({ status: 'failure' });
+
+    }
+}
+
+
+const updateBlockUserById = async (req, res) => {
+    try {
+        const idUser = req.params.id
+        const { type } = req.body
+
+        const user = await userModel.findById(idUser)
+        if (type === 'block') {
+            user.block = true
+            user.save()
+        } else {
+            user.block = false
+            user.save()
+        }
+        if (!user) {
+            return res.status(400).json({ status: 'failure', errors: { msg: 'thất bại!' } })
+        }
+        return res.status(200).json({ status: 'success', data: user })
+    } catch (error) {
+        return res.status(500).json({ status: 'failure' });
+    }
+}
 
 const signUp = async (req, res) => {
     try {
@@ -31,7 +72,7 @@ const signUp = async (req, res) => {
             return res.status(422).json({ errors: errors.array() });
         }
 
-        const { email, address, idCard, bankName, bankNumber, password, lastName, phoneNumber } = req.body
+        const { email, address, idCard, password, lastName, phoneNumber } = req.body
 
         const already = await userModel.findOne({ email })
         if (already) {
@@ -49,8 +90,6 @@ const signUp = async (req, res) => {
             hashPassWord,
             birthday: req.body.birthday ? req.body.birthday : '',
             idCard,
-            bankNumber,
-            bankName,
             address
         })
 
@@ -444,4 +483,209 @@ const getQuatityUsersByMonth = async (req, res) => {
 }
 
 
-export { getQuatityUsersByMonth, getParticipateReceiving,getRefuseFreeProducts, getRefuseProducts, getBidsProducts, getReceivedProducts, getFreeProductsByOwner, getProductsByOwner, deleteProductHistory, getPurchasedProducts, getWinProducts, deleteUserById, updateBidsForUserById_server, getUserById, signIn, signUp, resetPass, changePass };
+
+
+// --------------------- REPORT HANDLE-------------------
+const getReports = async (req, res) => {
+    try {
+        const data = await reportModel.find().populate('productId accuser accused')
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success', data })
+    } catch (error) {
+        return res.status(500)
+
+    }
+}
+
+const createReport = async (req, res) => {
+    try {
+
+        const { type, accuserId, accusedId, productId } = req.body
+        if (type.length === 0) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        const user1 = userModel.exists({ _id: accuserId })
+        const user2 = userModel.exists({ _id: accusedId })
+        if (!user1 || !user2) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        const checkProduct = await reportModel.findOne({ productId: productId })
+        if (checkProduct) {
+            return res.status(400).json({ status: 'failure', msg: 'Khiếu nại của bạn đang được chúng tôi xem xét!' })
+        }
+        const report = new reportModel({
+            type,
+            accuser: accuserId,
+            accused: accusedId,
+            productId
+        })
+        await report.save()
+        if (!report) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success' })
+
+    } catch (error) {
+        return res.status(500)
+
+    }
+}
+
+const approveReport = async (req, res) => {
+    const session = await mongoose.startSession()
+    session.startTransaction()
+    try {
+        const idReport = req.params.id
+        if (!idReport) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        const reportUpd = await reportModel.findById(idReport)
+        if (reportUpd && ( !reportUpd.mailToAccused || !reportUpd.mailToAccuser)) {
+            return res.status(400).json({ status: 'failure', msg: 'Hãy gửi mail đến 2 người dùng để xác nhận tố cáo từ 2 phía!' })
+        }
+
+        reportUpd.approve = true
+        await reportUpd.save({ session })
+        const updateAccuser = await userModel.findById(reportUpd.accuser)
+        const updateAccused = await userModel.findById(reportUpd.accused)
+
+        if (!updateAccuser.reportList.includes(reportUpd._id)) {
+            updateAccuser.reportList.push(reportUpd._id)
+            await updateAccuser.save({ session })
+        }
+
+        if (!updateAccused.myBadList.includes(reportUpd._id)) {
+            updateAccused.warnLevel = updateAccused.warnLevel + 1
+            updateAccused.myBadList.push(reportUpd._id)
+            await updateAccused.save({ session })
+
+        }
+
+        if (!reportUpd || !updateAccuser || !updateAccused) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        await session.commitTransaction()
+        session.endSession()
+        return res.status(200).json({ status: 'success' })
+
+
+    } catch (error) {
+        await session.abortTransaction()
+        session.endSession()
+        return res.status(500)
+    }
+}
+
+const handleFinishTransaction = async (req, res) => {
+
+    try {
+        const id = req.params.id
+        if (!id) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        const update = await productModel.findByIdAndUpdate(id, {
+            successfulTransaction: true,
+            paid: true,
+            statusPayment: 'Đã thanh toán',
+            statusPaymentSlug: 'da-thanh-toan',
+        })
+
+        if (!update) {
+            return res.status(400).json({ status: 'failure' })
+
+        }
+        return res.status(200).json({ status: 'success' })
+
+
+    } catch (error) {
+        return res.status(500)
+    }
+}
+
+const sendMailToUser = async (req, res) => {
+    try {
+        const { email, type, productName, typeReport, idReport } = req.body
+        const user = await userModel.findOne({ email: email })
+        const report = await reportModel.findById(idReport)
+        if (!user || !report) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        // gửi mail cho user
+        const subject = 'CIT Auction - Xác nhận tố cáo'
+        const text = 'Xin chào,'
+        let html = ""
+        if (type === 'mailToAccuser') {
+            report.mailToAccuser = true
+            html = `
+            <p>Chúng tôi đã nhận được tố cáo của bạn về người đấu giá sản phẩm có tên là ${productName}</p>
+            <p>Vui lòng cung cấp cho chúng tôi thêm các bằng chứng về tố cáo này!</p>
+            <p>Chúc bạn một ngày tốt lành</p>
+            <p>Trân trọng,</p>
+            <p><b>CIT Auction</b></p>
+        `
+        } else {
+            report.mailToAccused = true
+            html = `
+            <p>Chúng tôi nhận được một tố cáo về bạn</p>
+            <p>Tên sản phẩm: ${productName}</p>
+            <p>Lý do tố cáo: ${typeReport}</p>
+            <p>Vui lòng cung cấp cho chúng tôi thêm các bằng chứng chứng minh bạn không vi phạm các qui tắc mua hàng của chúng tôi!</p>
+            <p>Tố cáo này sẽ có giá trị nếu bạn không thể chứng minh bản thân không vi phạm trong 3 ngày!</p>
+            <p>Chúc bạn một ngày tốt lành</p>
+            <p>Trân trọng,</p>
+            <p><b>CIT Auction</b></p>
+            `
+        }
+        await report.save()
+        const { transporter, mailOption } = configMail(email, subject, text, html)
+        transporter.sendMail(mailOption, (err) => {
+            if (err) {
+                console.log(err);
+                res.status(500).json({ status: 'failure', message: "Gửi mail thất bại!" });
+
+            } else {
+                res.status(200).json({ status: 'success', message: "success" });
+            }
+        });
+    } catch (error) {
+        return res.status(500)
+
+    }
+}
+
+const deleteReport = async (req, res) => {
+    const session = await mongoose.startSession()
+    session.startTransaction()
+    try {
+        const id = req.params.id
+        await reportModel.findByIdAndDelete(id).session(session)
+
+        const del2 = await userModel.updateMany({ myBadList: id, reportList: id }, { $pull: { myBadList: id, reportList: id } }, { new: true })
+        if (!del2) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        await session.commitTransaction()
+        session.endSession()
+    } catch (error) {
+        await session.abortTransaction()
+        session.endSession()
+        return res.status(500)
+    }
+}
+
+
+
+export {
+    getQuatityUsersByMonth, getParticipateReceiving, getRefuseFreeProducts, sendMailToUser,
+    getRefuseProducts, getBidsProducts, getReceivedProducts, getFreeProductsByOwner,
+    getProductsByOwner, deleteProductHistory, getPurchasedProducts, getWinProducts,
+    deleteUserById, updateBidsForUserById_server, getUserById, signIn, signUp, resetPass, deleteReport,
+    changePass, updateBlockUserById, getAllUser, approveReport, createReport, getReports, handleFinishTransaction
+};

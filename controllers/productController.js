@@ -6,6 +6,7 @@ import path, { dirname } from 'path'
 import { fileURLToPath } from 'url';
 import { createRoom } from "./roomController.js";
 import { roomModel } from "../model/roomModel.js";
+import { reportModel } from '../model/reportModel.js'
 import { freeProductModel } from "../model/freeProductModel.js";
 import normalizeWord from "../utils/normalizeWord.js";
 import mongoose from "mongoose";
@@ -75,6 +76,20 @@ const getQuatityProductByMonth = async (req, res) => {
 
     }
 }
+
+const getPrepareToStart = async (req, res) => {
+    try {
+        const data = await productModel.find({ status: 'Đã được duyệt' }).sort({ startTime: 1 })
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success', data })
+    } catch (error) {
+        return res.status(500)
+
+    }
+}
+
 
 const getProductById = async (req, res) => {
     try {
@@ -186,7 +201,7 @@ const search = async (req, res) => {
 
 
 
-const itemsPerPage = 9;
+// const itemsPerPage = 9;
 const createProduct = async (req, res) => {
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -207,8 +222,8 @@ const createProduct = async (req, res) => {
         if (!proCategory) {
             return res.status(400).json({ status: 'failure', errors: { msg: 'Danh mục không hợp lệ!' } });
         }
-        const existingProductsCount = await productModel.find().count()
-        const page = Math.ceil((existingProductsCount + 1) / itemsPerPage);
+        // const existingProductsCount = await productModel.find().count()
+        // const page = Math.ceil((existingProductsCount + 1) / itemsPerPage);
         const newprod = new productModel({
             name,
             lazyName: normalizeWord(name),
@@ -224,7 +239,9 @@ const createProduct = async (req, res) => {
             category: proCategory,
             owner: proOwner,
             images,
-            page, auctionTypeSlug, checkoutTypeSlug
+            // page, 
+            auctionTypeSlug,
+            checkoutTypeSlug
         })
         const result = await newprod.save({ session })
 
@@ -351,22 +368,25 @@ const deleteProduct = async (req, res) => {
     try {
         const { idOwner, isFree } = req.body
         const idProd = req.params.id
-        let product
-        if (isFree) { // vat pham chia se
-            product = await freeProductModel.findById(idProd)
-        } else {
-            product = await productModel.findById(idProd)
-        }
+        let product = isFree ? await freeProductModel.findById(idProd) : await productModel.findById(idProd)
 
+        if (product.auctionStarted && !product.successfulTransaction) {
+            if (product.winner && !product.winner.equals(product.owner)) {
+                return res.status(400).json({ status: 'failure', msg: 'Bạn không thể đơn phương xóa sản phẩm khi giao dịch chưa hoàn tất!' })
+            }
+            if (product.purchasedBy && !product.purchasedBy.equals(product.owner)) {
+                return res.status(400).json({ status: 'failure', msg: 'Bạn không thể đơn phương xóa sản phẩm khi giao dịch chưa hoàn tất!' })
+            }
+        }
 
         if (!product) {
             return res.status(400).json({ status: 'failure', msg: 'Không tìm thấy sản phẩm!' })
         }
+        const owner = await userModel.findById(idOwner)
+        if (!owner) {
+            return res.status(400).json({ status: 'failure', msg: 'Không tìm thấy người dùng!' })
+        }
         if (product.owner.toString() === idOwner) {
-            const owner = await userModel.findById(idOwner)
-            if (!owner) {
-                return res.status(400).json({ status: 'failure', msg: 'Không tìm thấy người dùng!' })
-            }
             if (isFree) { // vat pham chia se
                 await freeProductModel.findByIdAndDelete(idProd).session(session)
                 const res2 = await userModel.updateMany({ $or: [{ createdFreeProduct: idProd }, { participateReceiving: idProd }, { receivedProduct: idProd }] },
@@ -378,15 +398,25 @@ const deleteProduct = async (req, res) => {
                 }
             } else {
                 await productModel.findByIdAndDelete(idProd).session(session)
+                await reportModel.findOneAndDelete({ productId: idProd }).session(session)
+
                 const res1 = await roomModel.findOneAndDelete({ product: idProd }).session(session)
-                const res2 = await userModel.updateMany({ createdProduct: idProd }, { $pull: { createdProduct: idProd, bid: idProd, room: res1._id } }).session(session)
+                const res2 = await userModel.updateMany(
+                    {
+                        $or: [
+                            { createdProduct: idProd }, { bids: idProd }, { room: res1._id }, { purchasedProduct: idProd }, { winProduct: idProd }
+                        ]
+
+                    },
+                    { $pull: { createdProduct: idProd, bids: idProd, room: res1._id, purchasedProduct: idProd, winProduct: idProd } }).session(session)
+
                 const res3 = await categoryModel.updateMany({ products: idProd }, { $pull: { products: idProd } }).session(session)
+
 
                 if (!res1 || !res2 || !res3) {
                     return res.status(400).json({ status: 'failure', errors: { msg: 'Xóa thất bại!' } });
                 }
             }
-
             const del = await deleteImages(product)
             if (!del) {
                 return res.status(400).json({ status: 'failure', errors: { msg: 'Xóa thất bại!' } });
@@ -396,9 +426,10 @@ const deleteProduct = async (req, res) => {
             session.endSession();
             return res.status(200).json({ status: 'success', _id: idProd, msg: 'Xóa sản phẩm thành công!' });
         } else {
+
             await session.abortTransaction();
             session.endSession();
-            return res.status(400).json({ status: 'failure', msg: 'Không thể update a!' })
+            return res.status(400).json({ status: 'failure', msg: 'Không thể update!' })
         }
 
     } catch (err) {
@@ -485,7 +516,7 @@ const updateAuctionEnded = async (req, res) => {
                 }, { new: true }).session(session).populate('category owner')
                 const result2 = await userModel.findByIdAndUpdate(result.winner,
                     {
-                        $push: { winProduct: result._id }
+                        $addToSet: { winProduct: result._id },
                     }
                     , { new: true }
                 ).session(session)
@@ -638,6 +669,23 @@ const approveAgainProduct = async (req, res) => {
     }
 }
 
+const updateShipping = async (req, res) => {
+    try {
+        const id = req.params.id
+        const product = await productModel.findById(id)
+        if (!product || (product.checkoutTypeSlug !== 'cod' && !product.paid)) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        product.shipping = true
+        await product.save()
+        return res.status(200).json({ status: 'success' })
+    } catch (error) {
+        return res.status(500)
+
+    }
+}
+
 const getCurrentPriceById_server = async (id) => {
     try {
         const data = await productModel.findById(id).select('currentPrice')
@@ -683,5 +731,5 @@ export {
     updateBidForProduct_server, getCurrentPriceById_server,
     updateCurrentPriceById_server, getCurrentPriceById, getProductById,
     getProducts, deleteProduct, editProduct, approveProduct, getAllProducts,
-    refuseProduct, approveAgainProduct, deleteImages, search
+    refuseProduct, approveAgainProduct, deleteImages, search, updateShipping, getPrepareToStart
 }

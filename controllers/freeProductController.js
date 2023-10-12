@@ -96,7 +96,7 @@ const getProductById = async (req, res) => {
     try {
         const id = req.params.id
 
-        const data = await freeProductModel.findById(id).populate('category')
+        const data = await freeProductModel.findById(id).populate('category owner')
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }

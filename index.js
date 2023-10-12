@@ -89,6 +89,11 @@ io.on('connection', (socket) => {
             io.in(data.room).emit('respone_bids', upBids.bids)
         }
     })
+
+    socket.on('buy_now', (data) => {
+        socket.broadcast.emit('respone_buy_now', data)
+    })
+
 })
 
 const PORT = process.env.PORT || 6000

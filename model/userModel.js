@@ -36,14 +36,6 @@ const schema = mongoose.Schema({
         type: String,
         default: 'user' // admin
     },
-    bankNumber: {
-        type: String,
-        require: true,
-    },
-    bankName: {
-        type: String,
-        require: true,
-    },
     address: {
         type: String,
         require: true,
@@ -96,6 +88,27 @@ const schema = mongoose.Schema({
             ref: 'auction_room',
         }
     ],
+    myBadList: [ // danh sách những report về bản thân
+        {
+            type: mongoose.Types.ObjectId,
+            ref: 'auction_report',
+        }
+    ],
+    reportList: [ // danh sách những người mà mình đã tố cáo
+        {
+            type: mongoose.Types.ObjectId,
+            ref: 'auction_report',
+        }
+    ],
+    warnLevel: {
+        type: Number,
+        default: 0
+    },
+    block: {
+        type: Boolean,
+        default: false
+    }
+
 
 }, { timestamps: true })
 

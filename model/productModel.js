@@ -160,7 +160,16 @@ const schema = mongoose.Schema({
     },
     page: {
         type: Number
-    }
+    },
+    shipping:{
+        type: Boolean,
+        default: false 
+    },
+    successfulTransaction:{
+        type: Boolean,
+        default: false 
+    },
+
 }, { timestamps: true })
 
 export const productModel = mongoose.model('auction_product', schema)
