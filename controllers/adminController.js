@@ -1,11 +1,9 @@
 import { statisticModel } from "../model/statisticModel.js"
 import fetch from "node-fetch";
 import { uiModel } from "../model/uiModel.js";
-import { productModel } from "../model/productModel.js";
 import fs from 'fs/promises'
 import path, { dirname } from 'path'
 import { fileURLToPath } from 'url';
-import { REFUSED } from "dns";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
