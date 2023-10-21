@@ -9,18 +9,20 @@ import configMail from "../utils/configMail.js";
 import mongoose from "mongoose";
 import { freeProductModel } from "../model/freeProductModel.js";
 import { reportModel } from "../model/reportModel.js";
+import { notificationModel } from "../model/notificationModel.js";
+import { io } from "../index.js";
+import { statisticModel } from "../model/statisticModel.js";
+import { payouts } from "./adminController.js";
 
 
 const getUserById = async (req, res) => {
     try {
         const idUser = req.params.id
-
-        const user = await userModel.findById(idUser).select('_id firstName lastName email address phoneNumber')
-
+        const user = await userModel.findById(idUser).select('_id emailPaypal address birthday idCard firstName lastName email address phoneNumber')
         if (!user) {
             return res.status(400).json({ status: 'failure', errors: { msg: 'thất bại!' } })
         }
-        return res.status(200).json({ status: 'success', user })
+        return res.status(200).json({ status: 'success', data: user })
     } catch (error) {
         return res.status(500).json({ status: 'failure' });
     }
@@ -28,7 +30,7 @@ const getUserById = async (req, res) => {
 
 const getAllUser = async (req, res) => {
     try {
-        const user = await userModel.find().select('_id firstName lastName email phoneNumber warnLevel')
+        const user = await userModel.find().select('_id firstName lastName email phoneNumber warnLevel block')
 
         if (!user) {
             return res.status(400).json({ status: 'failure', errors: { msg: 'thất bại!' } })
@@ -39,7 +41,6 @@ const getAllUser = async (req, res) => {
 
     }
 }
-
 
 const updateBlockUserById = async (req, res) => {
     try {
@@ -86,6 +87,7 @@ const signUp = async (req, res) => {
             firstName: req.body.firstName ? req.body.firstName : '',
             lastName,
             email,
+            emailPaypal: req.body.emailPaypal ? req.body.emailPaypal : '',
             phoneNumber,
             hashPassWord,
             birthday: req.body.birthday ? req.body.birthday : '',
@@ -94,6 +96,30 @@ const signUp = async (req, res) => {
         })
 
         await newUser.save()
+
+        const currentTime = new Date()
+        const currentYear = currentTime.getFullYear()
+        const currentMonth = currentTime.getMonth() + 1
+
+        const statisticByYear = await statisticModel.findOne({ year: currentYear })
+        if (statisticByYear) {
+            statisticByYear.userCount += 1
+
+            let checkMonth = statisticByYear.months.find((item) => item.month.toString() === currentMonth.toString())
+            if (checkMonth) {
+                // Nếu đã có thống kê cho tháng đó, tăng userCountInMonth trong tháng
+                checkMonth.userCountInMonth += 1;
+            } else {
+                // Nếu chưa có thống kê cho tháng đó, tạo một thống kê mới
+                statisticByYear.months.push({
+                    month: currentMonth,
+                    userCountInMonth: 1
+                });
+            }
+
+            await statisticByYear.save()
+        }
+
         return res.status(200).json({ status: 'success' });
     } catch (error) {
         return res.status(500).json({ status: 'failure' });
@@ -115,6 +141,10 @@ const signIn = async (req, res) => {
             return res.status(400).json({ status: 'failure', errors: { msg: 'Tài khoản hoặc mật khẩu không chính xác!' } });
         }
 
+        if (user.block) {
+            return res.status(400).json({ status: 'failure', errors: { msg: 'Tài khoản của bạn tạm thời bị khóa!' } });
+        }
+
         // Match password
         const matched = bcrypt.compareSync(password, user.hashPassWord);
         if (!matched) {
@@ -126,6 +156,7 @@ const signIn = async (req, res) => {
             email,
             role: user.role || 'user',
             lastName: user.lastName,
+            emailPaypal: user.emailPaypal || '',
             productPermission: user.createdProduct,
             freeProductPermission: user.createdFreeProduct
         }
@@ -144,6 +175,21 @@ const signIn = async (req, res) => {
         return res.status(500).json({ status: 'failure' });
     }
 };
+
+const updateProfile = async (req, res) => {
+    try {
+        const { userId, birthday, firstName, lastName, email, phoneNumber, idCard, address, emailPaypal } = req.body
+        const user = await userModel.findByIdAndUpdate(userId, {
+            birthday, firstName, lastName, email, phoneNumber, idCard, address, emailPaypal
+        }, { new: true })
+        if (!user) {
+            return res.status(400).json({ status: 'failure', msg: 'Cập nhật hồ sơ thất bại!' })
+        }
+        return res.status(200).json({ status: 'success' })
+    } catch (error) {
+        return res.status(500).json({ status: 'failure' });
+    }
+}
 
 const deleteUserById = async (req, res) => {
     const idUser = req.params.id
@@ -417,71 +463,71 @@ const deleteProductHistory = async (req, res) => {
     }
 }
 
-const getQuatityUsersByMonth = async (req, res) => {
+const getNotifications = async (req, res) => {
     try {
-        try {
-            const yearr = new Date().getFullYear()
-            const months = [
-                '01', '02', '03', '04', '05', '06',
-                '07', '08', '09', '10', '11', '12'
-            ];
-            const result = await userModel.aggregate([
-                {
-                    $match: {
-                        createdAt: {
-                            $gte: new Date(`${yearr}-01-01T00:00:00.000Z`), // Bắt đầu từ đầu năm
-                            $lt: new Date(`${yearr + 1}-01-01T00:00:00.000Z`), // Kết thúc vào đầu năm tiếp theo
-                        },
-                    },
-                },
-                {
-                    $project: {
-                        createdAt: 1, // Lấy trường createdAt
-                        yearMonth: {
-                            $dateToString: {
-                                format: '%Y-%m',
-                                date: '$createdAt',
-                                timezone: '+07:00', // Điều chỉnh múi giờ theo định dạng của bạn
-                            },
-                        },
-                    },
-                },
-                {
-                    $group: {
-                        _id: '$yearMonth',
-                        count: { $sum: 1 },
-                    },
-                },
-                {
-                    $sort: { _id: 1 }, // Sắp xếp theo thời gian tạo
-                },
-            ])
-
-            const data = {};
-            result.forEach((item) => {
-                data[item._id] = item.count;
-            });
-
-            // Điền giá trị 0 cho các tháng không có dữ liệu
-            months.forEach((month) => {
-                if (!data[yearr + '-' + month]) {
-                    data[yearr + '-' + month] = 0;
-                }
-            });
-
-            return res.status(200).json({ status: 'success', data: data })
-
-        } catch (error) {
-            return res.status(500)
-
+        const userId = req.params.userId
+        if (!userId) {
+            return res.status(400).json({ status: 'failure' })
         }
+        const data = await userModel.findById(userId).populate('notification').select('notification')
 
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success', data })
     } catch (error) {
         return res.status(500)
 
     }
 }
 
+const deleteNotification = async (req, res) => {
+    const session = await mongoose.startSession()
+    session.startTransaction()
+    try {
+        const id = req.params.id
+        const { userId } = req.body
+        const notification = await notificationModel.findById(id)
+        if (!notification) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        if (notification.recipient.toString() !== userId) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        await notificationModel.findByIdAndDelete(id).session(session)
+        await userModel.updateOne({ notification: notification._id }, {
+            $pull: {
+                notification: notification._id
+            }
+        }).session(session)
+        await session.commitTransaction()
+        session.endSession()
+        return res.status(200).json({ status: 'success' })
+
+    } catch (error) {
+        await session.abortTransaction()
+        session.endSession()
+        return res.status(500)
+    }
+}
+
+const updateNotifications = async (req, res) => {
+    try {
+        const userId = req.params.userId
+        const data = await notificationModel.updateMany({ recipient: userId, read: false }, { read: true })
+
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        return res.status(200).json({ status: 'success' })
+    } catch (error) {
+        return res.status(500)
+
+    }
+}
 
 
 
@@ -544,7 +590,7 @@ const approveReport = async (req, res) => {
         }
 
         const reportUpd = await reportModel.findById(idReport)
-        if (reportUpd && ( !reportUpd.mailToAccused || !reportUpd.mailToAccuser)) {
+        if (reportUpd && (!reportUpd.mailToAccused || !reportUpd.mailToAccuser)) {
             return res.status(400).json({ status: 'failure', msg: 'Hãy gửi mail đến 2 người dùng để xác nhận tố cáo từ 2 phía!' })
         }
 
@@ -555,21 +601,41 @@ const approveReport = async (req, res) => {
 
         if (!updateAccuser.reportList.includes(reportUpd._id)) {
             updateAccuser.reportList.push(reportUpd._id)
-            await updateAccuser.save({ session })
         }
 
         if (!updateAccused.myBadList.includes(reportUpd._id)) {
             updateAccused.warnLevel = updateAccused.warnLevel + 1
             updateAccused.myBadList.push(reportUpd._id)
-            await updateAccused.save({ session })
-
         }
 
         if (!reportUpd || !updateAccuser || !updateAccused) {
             return res.status(400).json({ status: 'failure' })
         }
+
+        const new1 = new notificationModel({
+            content: 'Chúng tôi cảm ơn bạn vì đã tố cáo những tài khoản có hành vi vi phạm điều khoản!',
+            type: 'infor',
+            recipient: reportUpd.accuser
+        })
+
+        const new2 = new notificationModel({
+            content: 'Chúng tôi nhận thấy bạn có hành vi vi phạm điều khoản của chúng tôi! Nếu những hành vi này còn xảy ra, chúng tôi bắt buộc phải khóa tài khoản của bạn!',
+            type: 'warning',
+            recipient: reportUpd.accused
+        })
+        await new1.save({ session })
+        await new2.save({ session })
+
+        updateAccuser.notification.unshift(new1._id)
+        updateAccused.notification.unshift(new1._id)
+
+        await updateAccuser.save({ session })
+        await updateAccused.save({ session })
+        io.in([reportUpd.accuser.toString(), reportUpd.accused.toString()]).emit('new_notification', 'new')
+
         await session.commitTransaction()
         session.endSession()
+
         return res.status(200).json({ status: 'success' })
 
 
@@ -581,28 +647,83 @@ const approveReport = async (req, res) => {
 }
 
 const handleFinishTransaction = async (req, res) => {
-
+    const session = await mongoose.startSession()
+    session.startTransaction()
     try {
         const id = req.params.id
+        const { userId } = req.body
+
         if (!id) {
             return res.status(400).json({ status: 'failure' })
         }
 
-        const update = await productModel.findByIdAndUpdate(id, {
-            successfulTransaction: true,
-            paid: true,
-            statusPayment: 'Đã thanh toán',
-            statusPaymentSlug: 'da-thanh-toan',
-        })
+        const update = await productModel.findById(id)
 
         if (!update) {
             return res.status(400).json({ status: 'failure' })
 
         }
+        const winner = update.winner || update.purchasedBy
+        if (userId.toString() !== winner.toString()) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        const shop = await userModel.findById(update.owner)
+
+
+        if (update.successfulTransaction === false) {
+            update.successfulTransaction = true
+            update.paid = true
+            update.statusPayment = 'Đã thanh toán'
+            update.statusPaymentSlug = 'da-thanh-toan'
+            await update.save({ session })
+
+            let price;
+            if (update.purchasedBy) {
+                price = Number(update.price) / 24000;
+            } else {
+                price = Number(update.currentPrice) / 24000;
+            }
+
+            price = price.toFixed(2).toString()
+
+            await payouts(shop.emailPaypal, price, update._id, update.name) //emailPaypal cua nguoi nhan, value, productId,name
+
+            const notification = new notificationModel({
+                content: `Sản phẩm "${update.name}" đã được giao thành công!`,
+                type: 'success',
+                recipient: update.owner,
+                img: update.images[0] || ''
+            })
+            const notification2 = new notificationModel({
+                content: `Chúng tôi vừa thanh toán cho bạn sản phẩm có tên "${update.name}", 
+                vui lòng kiểm tra lại! Nếu có bất kỳ sai sót nào xin vui lòng liên hệ với chúng tôi!`,
+                type: 'success',
+                recipient: update.owner,
+                img: update.images[0] || ''
+            })
+            await notification.save()
+            const receiver = await userModel.findById(update.owner)
+            receiver.notification.unshift(notification._id)
+            receiver.notification.unshift(notification2._id)
+            await receiver.save()
+
+
+            io.in(update.owner.toString()).emit('new_notification', 'new')
+
+        } else {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        await session.commitTransaction()
+        session.endSession()
+
         return res.status(200).json({ status: 'success' })
 
 
     } catch (error) {
+        await session.abortTransaction()
+        session.endSession()
         return res.status(500)
     }
 }
@@ -664,15 +785,22 @@ const deleteReport = async (req, res) => {
     session.startTransaction()
     try {
         const id = req.params.id
-        await reportModel.findByIdAndDelete(id).session(session)
-
-        const del2 = await userModel.updateMany({ myBadList: id, reportList: id }, { $pull: { myBadList: id, reportList: id } }, { new: true })
+        const report = await reportModel.findByIdAndDelete(id).session(session)
+        if (!report) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        const del2 = await userModel.updateMany({ $or: [{ myBadList: id }, { reportList: id }] }, { $pull: { myBadList: id, reportList: id } }, { new: true })
         if (!del2) {
             return res.status(400).json({ status: 'failure' })
         }
 
+        const accused = await userModel.findById(report.accused)
+        accused.warnLevel = accused.warnLevel - 1
+        await accused.save({ session })
+
         await session.commitTransaction()
         session.endSession()
+        return res.status(200).json({ status: 'success', message: "success" });
     } catch (error) {
         await session.abortTransaction()
         session.endSession()
@@ -683,9 +811,9 @@ const deleteReport = async (req, res) => {
 
 
 export {
-    getQuatityUsersByMonth, getParticipateReceiving, getRefuseFreeProducts, sendMailToUser,
-    getRefuseProducts, getBidsProducts, getReceivedProducts, getFreeProductsByOwner,
-    getProductsByOwner, deleteProductHistory, getPurchasedProducts, getWinProducts,
+    getParticipateReceiving, getRefuseFreeProducts, sendMailToUser, getNotifications, updateNotifications,
+    getRefuseProducts, getBidsProducts, getReceivedProducts, getFreeProductsByOwner, deleteNotification,
+    getProductsByOwner, deleteProductHistory, getPurchasedProducts, getWinProducts, updateProfile,
     deleteUserById, updateBidsForUserById_server, getUserById, signIn, signUp, resetPass, deleteReport,
     changePass, updateBlockUserById, getAllUser, approveReport, createReport, getReports, handleFinishTransaction
 };

@@ -15,6 +15,10 @@ const schema = mongoose.Schema({
         require: true,
         unique: true
     },
+    emailPaypal: {
+        type: String,
+        unique: true
+    },
     phoneNumber: {
         type: String,
         require: true,
@@ -98,6 +102,12 @@ const schema = mongoose.Schema({
         {
             type: mongoose.Types.ObjectId,
             ref: 'auction_report',
+        }
+    ],
+    notification: [
+        {
+            type: mongoose.Types.ObjectId,
+            ref: 'auction_notification',
         }
     ],
     warnLevel: {

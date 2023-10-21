@@ -3,8 +3,9 @@ import { userModel } from "../model/userModel.js";
 import { freeProductModel } from "../model/freeProductModel.js";
 import { deleteImages } from "./productController.js";
 import mongoose from "mongoose";
+import { io } from "../index.js";
+import { notificationModel } from "../model/notificationModel.js";
 
-const itemsPerPage = 9;
 
 const createFreeProduct = async (req, res) => {
     const session = await mongoose.startSession();
@@ -26,8 +27,8 @@ const createFreeProduct = async (req, res) => {
         if (!proCategory) {
             return res.status(400).json({ status: 'failure', errors: { msg: 'Danh mục không hợp lệ!' } });
         }
-        const existingProductsCount = await freeProductModel.find().count()
-        const page = Math.ceil((existingProductsCount + 1) / itemsPerPage);
+        // const existingProductsCount = await freeProductModel.find().count()
+        // const page = Math.ceil((existingProductsCount + 1) / itemsPerPage);
 
         const newprod = new freeProductModel({
             name,
@@ -35,7 +36,7 @@ const createFreeProduct = async (req, res) => {
             category: proCategory,
             owner: proOwner,
             images,
-            page
+            // page
         })
         const result = await newprod.save({ session })
 
@@ -64,24 +65,15 @@ const createFreeProduct = async (req, res) => {
 
 }
 
-const getFreeProducts = async (req, res) => {
-    try {
-        const page = req.params.page
-
-        const data = await freeProductModel.find({ status: 'Đã được duyệt', page: page }).populate('category')
-        if (!data) {
-            return res.status(400).json({ status: 'failure' })
-        }
-        return res.status(200).json({ status: 'success', data })
-
-    } catch (error) {
-        return res.status(500)
-    }
-}
-
 const getAllFreeProducts = async (req, res) => {
     try {
-        const data = await freeProductModel.find({ status: 'Đã được duyệt' }).populate('category')
+        const limit = req.params.limit
+        let data
+        if (limit) {
+            data = await freeProductModel.find({ status: 'Đã được duyệt' }).populate('category').limit(limit)
+        } else {
+            data = await freeProductModel.find({ status: 'Đã được duyệt' }).populate('category')
+        }
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
@@ -239,11 +231,11 @@ const editFreeProduct = async (req, res) => {
 const confirmSharingProduct = async (req, res) => {
     try {
         const { type, owner, idProduct } = req.body
-        const product = await freeProductModel.findById(idProduct)
+        const product = await freeProductModel.findById(idProduct).populate('owner')
         if (!product || product.receiver) {
             return res.status(400).json({ status: 'failure' })
         }
-        if (product.owner.toString() === owner) {
+        if (product.owner._id.toString() === owner) {
             let user
             if (type === 'email') {
                 user = await userModel.findOneAndUpdate({ email: req.body.email }, {
@@ -272,6 +264,21 @@ const confirmSharingProduct = async (req, res) => {
             if (!update) {
                 return res.status(400).json({ status: 'failure' })
             }
+
+            const notification = new notificationModel({
+                content: `Chúc mừng bạn nhận được sản phẩm "${update.name}" từ "${product.owner.email}", hãy liện hệ với họ để nhận nhé!`,
+                type: 'success',
+                recipient: update.receiver,
+                img: update.images[0] || ''
+            })
+
+            await notification.save()
+            const receiver = await userModel.findById(update.receiver)
+            receiver.notification.unshift(notification._id)
+            await receiver.save()
+            io.in(update.receiver.toString()).emit('new_notification', 'new')
+
+
             return res.status(200).json({ status: 'success' })
         }
         return res.status(400).json({ status: 'failure' })
@@ -281,4 +288,4 @@ const confirmSharingProduct = async (req, res) => {
     }
 }
 
-export { createFreeProduct, getAllFreeProducts, getProductById, getFreeProducts, confirmSharingProduct, getParticipationList, signUpToReceive, getProductsByStatus, editFreeProduct }
+export { createFreeProduct, getAllFreeProducts, getProductById, confirmSharingProduct, getParticipationList, signUpToReceive, getProductsByStatus, editFreeProduct }

@@ -10,72 +10,15 @@ import { reportModel } from '../model/reportModel.js'
 import { freeProductModel } from "../model/freeProductModel.js";
 import normalizeWord from "../utils/normalizeWord.js";
 import mongoose from "mongoose";
+import { statisticModel } from "../model/statisticModel.js";
+import { notificationModel } from "../model/notificationModel.js";
+import { io } from "../index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 
 
-
-const getQuatityProductByMonth = async (req, res) => {
-
-    try {
-        const yearr = new Date().getFullYear()
-        const months = [
-            '01', '02', '03', '04', '05', '06',
-            '07', '08', '09', '10', '11', '12'
-        ];
-        const result = await productModel.aggregate([
-            {
-                $match: {
-                    createdAt: {
-                        $gte: new Date(`${yearr}-01-01T00:00:00.000Z`), // Bắt đầu từ đầu năm
-                        $lt: new Date(`${yearr + 1}-01-01T00:00:00.000Z`), // Kết thúc vào đầu năm tiếp theo
-                    },
-                },
-            },
-            {
-                $project: {
-                    createdAt: 1, // Lấy trường createdAt
-                    yearMonth: {
-                        $dateToString: {
-                            format: '%Y-%m',
-                            date: '$createdAt',
-                            timezone: '+07:00', // Điều chỉnh múi giờ theo định dạng của bạn
-                        },
-                    },
-                },
-            },
-            {
-                $group: {
-                    _id: '$yearMonth',
-                    count: { $sum: 1 },
-                },
-            },
-            {
-                $sort: { _id: 1 }, // Sắp xếp theo thời gian tạo
-            },
-        ])
-
-        const data = {};
-        result.forEach((item) => {
-            data[item._id] = item.count;
-        });
-
-        // Điền giá trị 0 cho các tháng không có dữ liệu
-        months.forEach((month) => {
-            if (!data[yearr + '-' + month]) {
-                data[yearr + '-' + month] = 0;
-            }
-        });
-
-        return res.status(200).json({ status: 'success', data: data })
-
-    } catch (error) {
-        return res.status(500)
-
-    }
-}
 
 const getPrepareToStart = async (req, res) => {
     try {
@@ -89,7 +32,6 @@ const getPrepareToStart = async (req, res) => {
 
     }
 }
-
 
 const getProductById = async (req, res) => {
     try {
@@ -199,8 +141,6 @@ const search = async (req, res) => {
     }
 }
 
-
-
 // const itemsPerPage = 9;
 const createProduct = async (req, res) => {
     const session = await mongoose.startSession();
@@ -210,6 +150,8 @@ const createProduct = async (req, res) => {
         // owner => object id
         const proOwner = await userModel.findById(owner).select('_id ')
         const proCategory = await categoryModel.findById(category).select('_id')
+        const checkName = await productModel.countDocuments({ name: name })
+        const productName = checkName > 0 ? `${name} CA-${checkName}` : name
 
         const images = req.files.map((file) => {
             return `${process.env.BASE_URL}/uploads/${file.filename}`
@@ -225,8 +167,8 @@ const createProduct = async (req, res) => {
         // const existingProductsCount = await productModel.find().count()
         // const page = Math.ceil((existingProductsCount + 1) / itemsPerPage);
         const newprod = new productModel({
-            name,
-            lazyName: normalizeWord(name),
+            name: productName,
+            lazyName: normalizeWord(productName),
             basePrice,
             price,
             stepPrice,
@@ -370,14 +312,14 @@ const deleteProduct = async (req, res) => {
         const idProd = req.params.id
         let product = isFree ? await freeProductModel.findById(idProd) : await productModel.findById(idProd)
 
-        if (product.auctionStarted && !product.successfulTransaction) {
-            if (product.winner && !product.winner.equals(product.owner)) {
-                return res.status(400).json({ status: 'failure', msg: 'Bạn không thể đơn phương xóa sản phẩm khi giao dịch chưa hoàn tất!' })
-            }
-            if (product.purchasedBy && !product.purchasedBy.equals(product.owner)) {
-                return res.status(400).json({ status: 'failure', msg: 'Bạn không thể đơn phương xóa sản phẩm khi giao dịch chưa hoàn tất!' })
-            }
-        }
+        // if (product.auctionStarted && !product.successfulTransaction) {
+        //     if (product.winner && !product.winner.equals(product.owner)) {
+        //         return res.status(400).json({ status: 'failure', msg: 'Bạn không thể đơn phương xóa sản phẩm khi giao dịch chưa hoàn tất!' })
+        //     }
+        //     if (product.purchasedBy && !product.purchasedBy.equals(product.owner)) {
+        //         return res.status(400).json({ status: 'failure', msg: 'Bạn không thể đơn phương xóa sản phẩm khi giao dịch chưa hoàn tất!' })
+        //     }
+        // }
 
         if (!product) {
             return res.status(400).json({ status: 'failure', msg: 'Không tìm thấy sản phẩm!' })
@@ -459,7 +401,6 @@ const deleteImages = async (product, oldImgs = []) => {
     } catch (error) {
         console.log(error);
     }
-
 }
 
 const updateAuctionStarted = async (req, res) => {
@@ -480,6 +421,7 @@ const updateAuctionStarted = async (req, res) => {
                 return res.status(400).json({ status: 'failure' })
             }
             return res.status(200).json({
+                status: 'success',
                 data: result
             })
         } else {
@@ -500,10 +442,8 @@ const updateAuctionEnded = async (req, res) => {
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
-        const currTime = new Date()
-        const outOfDate = new Date(
-            currTime.getTime() + 72 * 1000
-        );
+
+
         if (type === 'bid') {  // or buy
             if (new Date(data.endTime).getTime() <= new Date().getTime()) {
 
@@ -511,8 +451,7 @@ const updateAuctionEnded = async (req, res) => {
                     auctionEnded: true,
                     stateSlug: 'da-ket-thuc',
                     state: 'Đã kết thúc',
-                    winner: data.bids.length ? data.bids[data.bids.length - 1].user : data.owner,
-                    outOfDatePayment: outOfDate
+                    winner: data.bids.length ? data.bids[data.bids.length - 1].user : data.owner
                 }, { new: true }).session(session).populate('category owner')
                 const result2 = await userModel.findByIdAndUpdate(result.winner,
                     {
@@ -524,6 +463,24 @@ const updateAuctionEnded = async (req, res) => {
                 if (!result || !result2) {
                     return res.status(400).json({ status: 'failure' })
                 }
+
+                //xu li tao thong bao va thong bao den nguoi dung
+                const notification = new notificationModel({
+                    content: `Bạn đã đấu giá thành công sản phẩm "${result.name}"`,
+                    type: 'success',
+                    recipient: result.winner,
+                    img: result.images[0] || ''
+                })
+
+                await notification.save({ session })
+
+                const receiver = await userModel.findById(result.winner)
+                receiver.notification.unshift(notification._id)
+                await receiver.save({ session })
+
+                io.in(result.winner.toString()).emit('new_notification', 'new')
+
+
                 await session.commitTransaction();
                 session.endSession();
                 return res.status(200).json({
@@ -562,6 +519,23 @@ const updateAuctionEnded = async (req, res) => {
                     session.endSession();
                     return res.status(400).json({ status: 'failure', msg: 'Đã xảy ra lỗi!' })
                 }
+                //xu li tao thong bao va thong bao den nguoi dung
+                const notification = new notificationModel({
+                    content: `Bạn đã mua ngay thành công sản phẩm "${result.name}"`,
+                    type: 'success',
+                    recipient: result.purchasedBy,
+                    img: result.images[0] || ''
+                })
+
+                await notification.save({ session })
+
+                const receiver = await userModel.findById(result.purchasedBy)
+                receiver.notification.unshift(notification._id)
+                await receiver.save({ session })
+
+                io.in(result.purchasedBy.toString()).emit('new_notification', 'new')
+
+
                 await session.commitTransaction();
                 session.endSession();
                 return res.status(200).json({
@@ -570,6 +544,8 @@ const updateAuctionEnded = async (req, res) => {
                 })
             }
         }
+
+
     } catch (error) {
         await session.abortTransaction();
         session.endSession();
@@ -577,42 +553,99 @@ const updateAuctionEnded = async (req, res) => {
     }
 }
 
-const updatePaid = async (productId) => {
-    try {
-        const data = await productModel.findByIdAndUpdate(productId, {
-            statusPayment: 'Đã thanh toán',
-            statusPaymentSlug: 'da-thanh-toan',
-            paid: true
-        }, { new: true })
-        if (!data) {
-            return false
-        }
-        return true
-    } catch (error) {
-        return false
-    }
-}
 
 const approveProduct = async (req, res) => {
     try {
         const id = req.params.id
         const { isFree } = req.body
         let data
+
+
         if (isFree) {
             data = await freeProductModel.findByIdAndUpdate(id, {
                 status: 'Đã được duyệt',
                 stateSlug: 'dang-dien-ra',
                 state: 'Đang diễn ra'
             })
+
+            const currentTime = new Date(data.createdAt)
+            const currentYear = currentTime.getFullYear()
+            const currentMonth = currentTime.getMonth() + 1
+
+            const statisticByYear = await statisticModel.findOne({ year: currentYear })
+
+            if (statisticByYear) {
+                statisticByYear.freeProductCount += 1
+
+                let checkMonth = statisticByYear.months.find((item) => item.month.toString() === currentMonth.toString())
+
+                if (checkMonth) {
+                    // Nếu đã có thống kê cho tháng đó, tăng userCountInMonth trong tháng
+                    checkMonth.freeProductCountInMonth += 1;
+                } else {
+                    // Nếu chưa có thống kê cho tháng đó, tạo một thống kê mới
+                    statisticByYear.months.push({
+                        month: currentMonth,
+                        freeProductCountInMonth: 1
+                    });
+                }
+
+                await statisticByYear.save()
+            }
+
         } else {
             data = await productModel.findByIdAndUpdate(id, {
                 status: 'Đã được duyệt'
             })
+
+            const currentTime = new Date(data.createdAt)
+            const currentYear = currentTime.getFullYear()
+            const currentMonth = currentTime.getMonth() + 1
+
+            const statisticByYear = await statisticModel.findOne({ year: currentYear })
+            if (statisticByYear) {
+                statisticByYear.auctionCount += 1
+
+                let checkMonth = statisticByYear.months.find((item) => item.month.toString() === currentMonth.toString())
+                if (checkMonth) {
+                    // Nếu đã có thống kê cho tháng đó, tăng userCountInMonth trong tháng
+                    checkMonth.auctionCountInMonth += 1;
+                } else {
+                    // Nếu chưa có thống kê cho tháng đó, tạo một thống kê mới
+                    statisticByYear.months.push({
+                        month: currentMonth,
+                        auctionCountInMonth: 1
+                    });
+                }
+
+                await statisticByYear.save()
+            }
         }
 
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
+
+        //xu li tao thong bao va thong bao den nguoi dung
+        const notification = new notificationModel({
+            content: `Sản phẩm "${data.name}" của bạn đã được duyệt!`,
+            type: 'success',
+            recipient: data.owner,
+            img: data.images[0] || ''
+
+        })
+
+
+        await notification.save()
+
+        const receiver = await userModel.findById(data.owner)
+        receiver.notification.unshift(notification._id)
+        await receiver.save()
+
+        io.in(data.owner.toString()).emit('new_notification', 'new')
+
+
+
         return res.status(200).json({ status: 'success' })
 
     } catch (error) {
@@ -637,6 +670,26 @@ const refuseProduct = async (req, res) => {
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
+
+        //xu li tao thong bao va thong bao den nguoi dung
+        const notification = new notificationModel({
+            content: `Sản phẩm "${data.name}" của bạn đã bị từ chối!`,
+            type: 'warning',
+            recipient: data.owner,
+            img: data.images[0] || ''
+
+        })
+
+        await notification.save()
+
+        const receiver = await userModel.findById(data.owner)
+        receiver.notification.unshift(notification._id)
+        await receiver.save()
+
+
+        io.in(data.owner.toString()).emit('new_notification', 'new')
+
+
         return res.status(200).json({ status: 'success' })
 
     } catch (error) {
@@ -662,6 +715,25 @@ const approveAgainProduct = async (req, res) => {
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
+
+        //xu li tao thong bao va thong bao den nguoi dung
+        const notification = new notificationModel({
+            content: `Sản phẩm "${data.name}" của bạn đã được xem xét lại và đã được duyệt!`,
+            type: 'success',
+            recipient: data.owner,
+            img: data.images[0] || ''
+
+        })
+
+        await notification.save()
+
+        const receiver = await userModel.findById(data.owner)
+        receiver.notification.unshift(notification._id)
+        await receiver.save()
+
+
+        io.in(data.owner.toString()).emit('new_notification', 'new')
+
         return res.status(200).json({ status: 'success' })
 
     } catch (error) {
@@ -679,6 +751,24 @@ const updateShipping = async (req, res) => {
 
         product.shipping = true
         await product.save()
+
+        //xu li tao thong bao va thong bao den nguoi dung
+        const userId = product.sold ? product.purchasedBy : product.winner
+        const notification = new notificationModel({
+            content: `Sản phẩm "${product.name}" đang trên đường giao đến bạn!`,
+            type: 'infor',
+            recipient: userId,
+            img: product.images[0] || ''
+        })
+
+        await notification.save()
+
+        const receiver = await userModel.findById(userId)
+        receiver.notification.unshift(notification._id)
+        await receiver.save()
+
+        io.in(userId.toString()).emit('new_notification', 'new')
+
         return res.status(200).json({ status: 'success' })
     } catch (error) {
         return res.status(500)
@@ -726,8 +816,8 @@ const updateBidForProduct_server = async (id, infor) => {
 }
 
 export {
-    getQuatityProductByMonth, getProductsByStatus, createProduct,
-    updateAuctionEnded, updateAuctionStarted, getBidsById, updatePaid,
+    getProductsByStatus, createProduct,
+    updateAuctionEnded, updateAuctionStarted, getBidsById,
     updateBidForProduct_server, getCurrentPriceById_server,
     updateCurrentPriceById_server, getCurrentPriceById, getProductById,
     getProducts, deleteProduct, editProduct, approveProduct, getAllProducts,

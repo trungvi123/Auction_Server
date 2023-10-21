@@ -1,5 +1,4 @@
 import express from "express";
-// import paypal from 'paypal-rest-sdk'
 import { createOrderByPayPalController,captureOrderByPayPalController } from "../controllers/paymentController.js";
 
 

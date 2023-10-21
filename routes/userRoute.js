@@ -1,22 +1,19 @@
 import express from "express";
+import { getTemplateActive } from "../controllers/adminController.js";
 import {
   getUserById,
-  deleteUserById,
-  signIn, getRefuseProducts, getReports,sendMailToUser,deleteReport,
-  signUp, resetPass, changePass, getBidsProducts, getRefuseFreeProducts, getQuatityUsersByMonth,
+  signIn, getRefuseProducts,
+  signUp, resetPass, changePass, getBidsProducts, getRefuseFreeProducts, getNotifications, updateNotifications, updateProfile,
   deleteProductHistory, getWinProducts, getProductsByOwner, getPurchasedProducts, getParticipateReceiving
-  , getFreeProductsByOwner, getReceivedProducts, getAllUser, approveReport, updateBlockUserById, createReport, handleFinishTransaction
+  , getFreeProductsByOwner, getReceivedProducts, createReport, handleFinishTransaction, deleteNotification
 } from "../controllers/userController.js";
-import { checkAccessToken, checkAdminAccessToken } from "../middleware/authToken.js";
+import { checkAccessToken } from "../middleware/authToken.js";
 import { checkSignUp, checkSignIn, checkEmail } from '../middleware/checkRequest.js'
 
 
 const router = express.Router();
 
-router.get('/quatityUsers', getQuatityUsersByMonth);
 
-router.get('/all', getAllUser) // admin
-router.get('/reports', getReports) // admin
 router.get('/purchasedProducts/:id', checkAccessToken, getPurchasedProducts);
 router.get('/receivedProducts/:id', checkAccessToken, getReceivedProducts);
 router.get('/getParticipateReceiving/:id', checkAccessToken, getParticipateReceiving);
@@ -26,8 +23,9 @@ router.get('/refuseFreeProducts/:id', checkAccessToken, getRefuseFreeProducts);
 router.get('/winProducts/:id', checkAccessToken, getWinProducts);
 router.get('/owner/freeProduct/:id', checkAccessToken, getFreeProductsByOwner);
 router.get('/owner/:id', checkAccessToken, getProductsByOwner);
-router.get('/:id', getUserById);
-
+router.get('/notifications/:userId', checkAccessToken, getNotifications);
+router.get('/getTemplateActive', getTemplateActive)
+router.get('/:id', checkAccessToken, getUserById);
 
 router.post('/signUp', checkSignUp, signUp);
 router.post('/signIn', checkSignIn, signIn);
@@ -35,14 +33,13 @@ router.post('/resetPass', checkAccessToken, checkEmail, resetPass);
 router.post('/changePass', checkAccessToken, checkSignIn, changePass);
 router.post('/createReport', checkAccessToken, createReport);
 router.post('/deleteProductHistory/:id', checkAccessToken, deleteProductHistory);
-router.post('/handleFinishTransaction/:id', handleFinishTransaction);
-router.post('/updateBlockUserById/:id', updateBlockUserById); //admin
-router.post('/sendMailToUser',sendMailToUser) // admin
+router.post('/handleFinishTransaction/:id', checkAccessToken, handleFinishTransaction);
+router.post('/deleteNotification/:id', checkAccessToken, deleteNotification);
 
-router.patch('/approveReport/:id', approveReport); //admin
+router.patch('/updateProfile', checkAccessToken, updateProfile);
+router.patch('/updateNotifications/:userId', checkAccessToken, updateNotifications);
 
-router.delete('/deleteReport/:id', deleteReport); //admin
-router.delete('/:id', checkAdminAccessToken, deleteUserById);
+
 
 
 export default router 

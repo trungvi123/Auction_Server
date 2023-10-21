@@ -152,7 +152,6 @@ const schema = mongoose.Schema({
         type: String,
         default: 'cod',
         // payment
-        // all
     },
     isFree: {
         type: Boolean,
@@ -161,14 +160,18 @@ const schema = mongoose.Schema({
     page: {
         type: Number
     },
-    shipping:{
+    shipping: {
         type: Boolean,
-        default: false 
+        default: false
     },
-    successfulTransaction:{
+    successfulTransaction: {
         type: Boolean,
-        default: false 
+        default: false
     },
+    payout_batch_id: { // view detail payout
+        type: String,
+        default: ''
+    }
 
 }, { timestamps: true })
 
