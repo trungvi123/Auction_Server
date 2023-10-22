@@ -19,14 +19,15 @@ env.config()
 
 const app = express()
 const corsOrigin = {
-    origin: process.env.CLIENT_URL || process.env.BASE_URL, //or whatever port your frontend is using
+    origin: [process.env.CLIENT_URL , process.env.CLIENT_URL2],
+    methods: ["*"], //or whatever port your frontend is using
     credentials: true,
 };
 const server = http.createServer(app)
 
 const io = new Server(server, {
     cors: {
-        origin: process.env.CLIENT_URL || process.env.BASE_URL,
+        origin: [process.env.CLIENT_URL, process.env.CLIENT_URL2],
         methods: ["*"]
     }
 })
