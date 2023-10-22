@@ -559,8 +559,6 @@ const approveProduct = async (req, res) => {
         const id = req.params.id
         const { isFree } = req.body
         let data
-
-
         if (isFree) {
             data = await freeProductModel.findByIdAndUpdate(id, {
                 status: 'Đã được duyệt',

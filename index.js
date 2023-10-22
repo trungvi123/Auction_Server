@@ -19,15 +19,14 @@ env.config()
 
 const app = express()
 const corsOrigin = {
-    origin: [process.env.CLIENT_URL, process.env.CLIENT_URL2, 'https://cit-auction.web.app/', 'https://cit-auction.firebaseapp.com/'],
-    methods: ["*"], //or whatever port your frontend is using
+    origin: [process.env.CLIENT_URL, process.env.CLIENT_URL2],
     credentials: true,
 };
 const server = http.createServer(app)
 
 const io = new Server(server, {
     cors: {
-        origin: [process.env.CLIENT_URL, process.env.CLIENT_URL2,'https://cit-auction.web.app/', 'https://cit-auction.firebaseapp.com/'],
+        origin: [process.env.CLIENT_URL, process.env.CLIENT_URL2,'http://localhost:3000'],
         methods: ["*"]
     }
 })
