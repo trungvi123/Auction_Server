@@ -19,7 +19,7 @@ env.config()
 
 const app = express()
 const corsOrigin = {
-    origin: [process.env.CLIENT_URL , process.env.CLIENT_URL2],
+    origin: [process.env.CLIENT_URL, process.env.CLIENT_URL2, 'https://cit-auction.web.app/', 'https://cit-auction.firebaseapp.com/'],
     methods: ["*"], //or whatever port your frontend is using
     credentials: true,
 };
@@ -27,7 +27,7 @@ const server = http.createServer(app)
 
 const io = new Server(server, {
     cors: {
-        origin: [process.env.CLIENT_URL, process.env.CLIENT_URL2],
+        origin: [process.env.CLIENT_URL, process.env.CLIENT_URL2,'https://cit-auction.web.app/', 'https://cit-auction.firebaseapp.com/'],
         methods: ["*"]
     }
 })
@@ -35,7 +35,7 @@ startWebsocket(io)
 
 app.use(express.static('public'))
 
-app.use(cors())
+// app.use(cors())
 app.use(cors(corsOrigin));
 app.use(bodyparser.json());
 app.use(bodyparser.urlencoded({ extended: true }));
