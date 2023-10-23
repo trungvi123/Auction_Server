@@ -139,6 +139,9 @@ const updateImgTemplate = async (req, res) => {
             return res.status(400).json({ status: 'failure', msg: `UI NOT FOUND` })
         }
         const image = `${process.env.BASE_URL}/ui/uploads/${req.file.filename}`
+
+        console.log(image);
+
         if (type === 'img_intro_homePage') {
             const check = await deleteImageTemplate(ui.images[0].img_intro_homePage)
             if (!check) {
