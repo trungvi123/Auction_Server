@@ -84,7 +84,7 @@ const createTemplate = async (req, res) => {
 
 const updateTemplate = async (req, res) => {
     try {
-        const { id, address, color_primary, fieldImgUpload, color_secondary, email, long_intro, mst, phoneNumber, short_intro, nameCongfig, } = req.body
+        const { id, address, color_primary, color_secondary, email, long_intro, mst, phoneNumber, short_intro, nameCongfig, } = req.body
         const ui = await uiModel.findById(id)
         if (!ui) {
             return res.status(400).json({ status: 'failure', msg: `UI NOT FOUND` })
@@ -116,13 +116,13 @@ const deleteImageTemplate = async (deleteImg) => {
 
             let fileName = deleteImg.replace(`${process.env.BASE_URL}/ui/uploads/`, '');
             let filePath = path.join(folderPath, fileName);
-            await fs.unlink(filePath, (error) => {
+            return await fs.unlink(filePath, (error) => {
                 if (error) {
                     console.log(error);
+                    return false
                 }
             });
 
-            return true
         }
         return false
 
