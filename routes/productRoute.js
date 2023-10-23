@@ -20,6 +20,10 @@ router.get('/page/:page', getProducts);
 router.get('/edit/auctionStarted/:id', updateAuctionStarted)
 router.get('/:id', getProductById);
 
+
+
+
+// router.post('/share', shareProductOnFacebook);
 router.post('/delete/:id', checkAccessToken, deleteProduct);
 router.post('/edit/auctionEnded/:id', updateAuctionEnded)
 router.post('/status', getProductsByStatus);

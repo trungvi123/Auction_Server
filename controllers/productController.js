@@ -553,6 +553,29 @@ const updateAuctionEnded = async (req, res) => {
     }
 }
 
+// const shareProductOnFacebook = async (req, res) => {
+//     try {
+//         const { id, type } = req.body
+//         let product
+//         if (type === 'free') {
+//             product = await freeProductModel.findById(id)
+//         } else {
+//             product = await productModel.findById(id)
+//         }
+
+//         if (!product) {
+//             return res.status(400).send("Not found");
+//         }
+//         const folderPath = path.join(__dirname, '../html', 'share.html');
+//         // console.log(folderPath);
+     
+//         return res.sendFile(folderPath);
+
+//     } catch (error) {
+//         return res.status(500)
+//     }
+// }
+
 
 const approveProduct = async (req, res) => {
     try {
@@ -816,7 +839,7 @@ const updateBidForProduct_server = async (id, infor) => {
 export {
     getProductsByStatus, createProduct,
     updateAuctionEnded, updateAuctionStarted, getBidsById,
-    updateBidForProduct_server, getCurrentPriceById_server,
+    updateBidForProduct_server, getCurrentPriceById_server, 
     updateCurrentPriceById_server, getCurrentPriceById, getProductById,
     getProducts, deleteProduct, editProduct, approveProduct, getAllProducts,
     refuseProduct, approveAgainProduct, deleteImages, search, updateShipping, getPrepareToStart

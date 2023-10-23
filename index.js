@@ -19,14 +19,14 @@ env.config()
 
 const app = express()
 const corsOrigin = {
-    origin: [process.env.CLIENT_URL, process.env.CLIENT_URL2],
+    origin: [process.env.CLIENT_URL, process.env.CLIENT_URL2,'http://localhost:3000'],
     credentials: true,
 };
 const server = http.createServer(app)
 
 const io = new Server(server, {
     cors: {
-        origin: [process.env.CLIENT_URL, process.env.CLIENT_URL2,'http://localhost:3000'],
+        origin: [process.env.CLIENT_URL, process.env.CLIENT_URL2,'http://localhost:3000'], // nhớ xóa khi mt product
         methods: ["*"]
     }
 })
