@@ -111,7 +111,7 @@ const updateTemplate = async (req, res) => {
 
 const deleteImageTemplate = async (deleteImg) => {
     try {
-        if (deleteImg) {
+        if (deleteImg !== '') {
             const folderPath = path.join(__dirname, '../public', 'ui/uploads'); // Đường dẫn đến thư mục chứa tệp ảnh
 
             let fileName = deleteImg.replace(`${process.env.BASE_URL}/ui/uploads/`, '');
