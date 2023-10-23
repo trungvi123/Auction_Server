@@ -142,16 +142,24 @@ const updateImgTemplate = async (req, res) => {
 
 
         if (type === 'img_intro_homePage') {
-            await deleteImageTemplate(ui.images[0].img_intro_homePage)
+            if(ui.images[0].img_intro_homePage){
+                await deleteImageTemplate(ui.images[0].img_intro_homePage)
+            }
             ui.images[0].img_intro_homePage = image
         } else if (type === 'img_logo') {
-            await deleteImageTemplate(ui.images[0].img_logo)
+            if(ui.images[0].img_logo){
+                await deleteImageTemplate(ui.images[0].img_logo)
+            }
             ui.images[0].img_logo = image
         } else if (type === 'img_mini_logo') {
-            await deleteImageTemplate(ui.images[0].img_mini_logo)
+            if(ui.images[0].img_mini_logo){
+                await deleteImageTemplate(ui.images[0].img_mini_logo)
+            }
             ui.images[0].img_mini_logo = image
         } else {
-            await deleteImageTemplate(ui.images[0].img_breadcrum)
+            if(ui.images[0].img_breadcrum){
+                await deleteImageTemplate(ui.images[0].img_breadcrum)
+            }
             ui.images[0].img_breadcrum = image
         }
 
