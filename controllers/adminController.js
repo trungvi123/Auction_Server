@@ -116,18 +116,17 @@ const deleteImageTemplate = async (deleteImg) => {
 
             let fileName = deleteImg.replace(`${process.env.BASE_URL}/ui/uploads/`, '');
             let filePath = path.join(folderPath, fileName);
-            return await fs.unlink(filePath, (error) => {
+            await fs.unlink(filePath, (error) => {
                 if (error) {
-                    console.log(error);
-                    return false
+                    throw error
                 }
             });
+            return true
 
         }
-        return false
-
+        return true
     } catch (error) {
-        console.log(error);
+        return false
     }
 }
 
@@ -135,30 +134,33 @@ const updateImgTemplate = async (req, res) => {
     try {
         const { type, id } = req.body
         const ui = await uiModel.findById(id)
+
         if (!ui) {
             return res.status(400).json({ status: 'failure', msg: `UI NOT FOUND` })
         }
         const image = `${process.env.BASE_URL}/ui/uploads/${req.file.filename}`
-
-
         if (type === 'img_intro_homePage') {
-            if(ui.images[0].img_intro_homePage){
-                await deleteImageTemplate(ui.images[0].img_intro_homePage)
+            const check = await deleteImageTemplate(ui.images[0].img_intro_homePage)
+            if (!check) {
+                return res.status(400).json({ status: 'failure' })
             }
             ui.images[0].img_intro_homePage = image
         } else if (type === 'img_logo') {
-            if(ui.images[0].img_logo){
-                await deleteImageTemplate(ui.images[0].img_logo)
+            const check = await deleteImageTemplate(ui.images[0].img_logo)
+            if (!check) {
+                return res.status(400).json({ status: 'failure' })
             }
             ui.images[0].img_logo = image
         } else if (type === 'img_mini_logo') {
-            if(ui.images[0].img_mini_logo){
-                await deleteImageTemplate(ui.images[0].img_mini_logo)
+            const check = await deleteImageTemplate(ui.images[0].img_mini_logo)
+            if (!check) {
+                return res.status(400).json({ status: 'failure' })
             }
             ui.images[0].img_mini_logo = image
         } else {
-            if(ui.images[0].img_breadcrum){
-                await deleteImageTemplate(ui.images[0].img_breadcrum)
+            const check = await deleteImageTemplate(ui.images[0].img_breadcrum)
+            if (!check) {
+                return res.status(400).json({ status: 'failure' })
             }
             ui.images[0].img_breadcrum = image
         }
@@ -234,7 +236,7 @@ const getTemplates = async (req, res) => {
 
 const getTemplateActive = async (req, res) => {
     try {
-        const ui = await uiModel.findOne({isActive:true})
+        const ui = await uiModel.findOne({ isActive: true })
         if (!ui) {
             return res.status(400).json({ status: 'failure' })
         }
@@ -334,4 +336,4 @@ const payouts = async (emailPaypal, value, productId, productName) => {
 
 
 
-export { createStatistic,getTemplateActive, activeTemplate, deleteTemplate, updateImgTemplate, updateTemplate, deleteStatistic, deleteImageTemplate, getAllStatistic, getStatisticByYear, payouts, createTemplate, getTemplates }
+export { createStatistic, getTemplateActive, activeTemplate, deleteTemplate, updateImgTemplate, updateTemplate, deleteStatistic, deleteImageTemplate, getAllStatistic, getStatisticByYear, payouts, createTemplate, getTemplates }
