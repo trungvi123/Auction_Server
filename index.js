@@ -48,7 +48,7 @@ app.use('/category', categoryRouter)
 app.use('/token', tokenRouter)
 app.use('/room', roomRouter)
 app.use('/payment', paymentRouter)
-app.use('/',(req,res)=>{
+app.get('/',(req,res)=>{
     res.send('Hello')
 })
 
