@@ -39,15 +39,18 @@ app.use(cors(corsOrigin));
 app.use(bodyparser.json());
 app.use(bodyparser.urlencoded({ extended: true }));
 app.use(cookieParser());
+
 app.use('/user', userRouter)
 app.use('/product', productRouter)
 app.use('/freeProduct', freeProductRouter)
-app.use('/admin/', adminRouter)
+app.use('/admin', adminRouter)
 app.use('/category', categoryRouter)
 app.use('/token', tokenRouter)
 app.use('/room', roomRouter)
 app.use('/payment', paymentRouter)
-
+app.use('/',(req,res)=>{
+    res.send('Hello')
+})
 
 
 
