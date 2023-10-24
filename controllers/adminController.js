@@ -116,13 +116,13 @@ const deleteImageTemplate = async (deleteImg) => {
 
             let fileName = deleteImg.replace(`${process.env.BASE_URL}/ui/uploads/`, '');
             let filePath = path.join(folderPath, fileName);
-            console.log(filePath);
-            return abc = await fs.unlink(filePath);
-
+            await fs.unlink(filePath,(err)=>{
+                throw err
+            });
         }
         return true
     } catch (error) {
-        return true
+        return false
     }
 }
 
