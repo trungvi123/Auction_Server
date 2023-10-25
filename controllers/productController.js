@@ -443,108 +443,110 @@ const updateAuctionEnded = async (req, res) => {
             return res.status(400).json({ status: 'failure' })
         }
 
+        if (data.auctionEnded === false) {
+            if (type === 'bid') {  // or buy
+                if (new Date(data.endTime).getTime() <= new Date().getTime()) {
 
-        if (type === 'bid') {  // or buy
-            if (new Date(data.endTime).getTime() <= new Date().getTime()) {
+                    const result = await productModel.findByIdAndUpdate(id, {
+                        auctionEnded: true,
+                        stateSlug: 'da-ket-thuc',
+                        state: 'Đã kết thúc',
+                        winner: data.bids.length ? data.bids[data.bids.length - 1].user : data.owner
+                    }, { new: true }).session(session).populate('category owner')
+                    const result2 = await userModel.findByIdAndUpdate(result.winner,
+                        {
+                            $addToSet: { winProduct: result._id },
+                        }
+                        , { new: true }
+                    ).session(session)
 
-                const result = await productModel.findByIdAndUpdate(id, {
-                    auctionEnded: true,
-                    stateSlug: 'da-ket-thuc',
-                    state: 'Đã kết thúc',
-                    winner: data.bids.length ? data.bids[data.bids.length - 1].user : data.owner
-                }, { new: true }).session(session).populate('category owner')
-                const result2 = await userModel.findByIdAndUpdate(result.winner,
-                    {
-                        $addToSet: { winProduct: result._id },
+                    if (!result || !result2) {
+                        return res.status(400).json({ status: 'failure' })
                     }
-                    , { new: true }
-                ).session(session)
 
-                if (!result || !result2) {
+                    //xu li tao thong bao va thong bao den nguoi dung
+                    const notification = new notificationModel({
+                        content: `Bạn đã đấu giá thành công sản phẩm "${result.name}"`,
+                        type: 'success',
+                        recipient: result.winner,
+                        img: result.images[0] || ''
+                    })
+
+                    await notification.save({ session })
+
+                    const receiver = await userModel.findById(result.winner)
+                    receiver.notification.unshift(notification._id)
+                    await receiver.save({ session })
+
+                    io.in(result.winner.toString()).emit('new_notification', 'new')
+
+
+                    await session.commitTransaction();
+                    session.endSession();
+                    return res.status(200).json({
+                        status: 'success',
+                        data: result
+                    })
+                } else {
                     return res.status(400).json({ status: 'failure' })
                 }
-
-                //xu li tao thong bao va thong bao den nguoi dung
-                const notification = new notificationModel({
-                    content: `Bạn đã đấu giá thành công sản phẩm "${result.name}"`,
-                    type: 'success',
-                    recipient: result.winner,
-                    img: result.images[0] || ''
-                })
-
-                await notification.save({ session })
-
-                const receiver = await userModel.findById(result.winner)
-                receiver.notification.unshift(notification._id)
-                await receiver.save({ session })
-
-                io.in(result.winner.toString()).emit('new_notification', 'new')
-
-
-                await session.commitTransaction();
-                session.endSession();
-                return res.status(200).json({
-                    status: 'success',
-                    data: result
-                })
-            } else {
-                return res.status(400).json({ status: 'failure' })
-            }
-        } else { // type = buy
-            if (data.auctionStarted && !data.auctionEnded) { // chir mua khi đã bắt đầu và chưa kết thúc
-                const user = await userModel.findById(idUser)
-                if (!user) {
-                    return res.status(400).json({ status: 'failure', msg: 'User not found' })
-                }
-
-
-                const result = await productModel.findByIdAndUpdate(id, {
-                    auctionEnded: true,
-                    stateSlug: 'da-ket-thuc',
-                    state: 'Đã kết thúc',
-                    sold: true,
-                    soldAt: new Date(),
-                    purchasedBy: user._id,
-                    outOfDatePayment: outOfDate
-                }, { new: true }).session(session).populate('category owner')
-
-                const result2 = await userModel.findByIdAndUpdate(user._id,
-                    {
-                        $push: { purchasedProduct: result._id }
+            } else { // type = buy
+                if (data.auctionStarted && !data.auctionEnded) { // chir mua khi đã bắt đầu và chưa kết thúc
+                    const user = await userModel.findById(idUser)
+                    if (!user) {
+                        return res.status(400).json({ status: 'failure', msg: 'User not found' })
                     }
-                    , { new: true }
-                ).session(session)
-                if (!result || !result2) {
-                    await session.abortTransaction();
+
+
+                    const result = await productModel.findByIdAndUpdate(id, {
+                        auctionEnded: true,
+                        stateSlug: 'da-ket-thuc',
+                        state: 'Đã kết thúc',
+                        sold: true,
+                        soldAt: new Date(),
+                        purchasedBy: user._id,
+                        outOfDatePayment: outOfDate
+                    }, { new: true }).session(session).populate('category owner')
+
+                    const result2 = await userModel.findByIdAndUpdate(user._id,
+                        {
+                            $push: { purchasedProduct: result._id }
+                        }
+                        , { new: true }
+                    ).session(session)
+                    if (!result || !result2) {
+                        await session.abortTransaction();
+                        session.endSession();
+                        return res.status(400).json({ status: 'failure', msg: 'Đã xảy ra lỗi!' })
+                    }
+                    //xu li tao thong bao va thong bao den nguoi dung
+                    const notification = new notificationModel({
+                        content: `Bạn đã mua ngay thành công sản phẩm "${result.name}"`,
+                        type: 'success',
+                        recipient: result.purchasedBy,
+                        img: result.images[0] || ''
+                    })
+
+                    await notification.save({ session })
+
+                    const receiver = await userModel.findById(result.purchasedBy)
+                    receiver.notification.unshift(notification._id)
+                    await receiver.save({ session })
+
+                    io.in(result.purchasedBy.toString()).emit('new_notification', 'new')
+
+
+                    await session.commitTransaction();
                     session.endSession();
-                    return res.status(400).json({ status: 'failure', msg: 'Đã xảy ra lỗi!' })
+                    return res.status(200).json({
+                        status: 'success',
+                        data: result
+                    })
                 }
-                //xu li tao thong bao va thong bao den nguoi dung
-                const notification = new notificationModel({
-                    content: `Bạn đã mua ngay thành công sản phẩm "${result.name}"`,
-                    type: 'success',
-                    recipient: result.purchasedBy,
-                    img: result.images[0] || ''
-                })
-
-                await notification.save({ session })
-
-                const receiver = await userModel.findById(result.purchasedBy)
-                receiver.notification.unshift(notification._id)
-                await receiver.save({ session })
-
-                io.in(result.purchasedBy.toString()).emit('new_notification', 'new')
-
-
-                await session.commitTransaction();
-                session.endSession();
-                return res.status(200).json({
-                    status: 'success',
-                    data: result
-                })
             }
+        }else {
+            return res.status(200).json({ status: 'failure' })
         }
-
 
     } catch (error) {
         await session.abortTransaction();
@@ -568,7 +570,7 @@ const updateAuctionEnded = async (req, res) => {
 //         }
 //         const folderPath = path.join(__dirname, '../html', 'share.html');
 //         // console.log(folderPath);
-     
+
 //         return res.sendFile(folderPath);
 
 //     } catch (error) {
@@ -839,7 +841,7 @@ const updateBidForProduct_server = async (id, infor) => {
 export {
     getProductsByStatus, createProduct,
     updateAuctionEnded, updateAuctionStarted, getBidsById,
-    updateBidForProduct_server, getCurrentPriceById_server, 
+    updateBidForProduct_server, getCurrentPriceById_server,
     updateCurrentPriceById_server, getCurrentPriceById, getProductById,
     getProducts, deleteProduct, editProduct, approveProduct, getAllProducts,
     refuseProduct, approveAgainProduct, deleteImages, search, updateShipping, getPrepareToStart

@@ -19,15 +19,18 @@ env.config()
 
 const app = express()
 const corsOrigin = {
-    origin: [process.env.CLIENT_URL, process.env.CLIENT_URL2,'http://localhost:3000'],
+    // origin: [process.env.CLIENT_URL, process.env.CLIENT_URL2, 'http://localhost:3000'],
+    origin: '',
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
 };
 const server = http.createServer(app)
 
 const io = new Server(server, {
     cors: {
-        origin: [process.env.CLIENT_URL, process.env.CLIENT_URL2,'http://localhost:3000'], // nhớ xóa khi mt product
-        methods: ["*"]
+        origin: [process.env.CLIENT_URL, process.env.CLIENT_URL2, 'http://localhost:3000'], // nhớ xóa khi mt product
+        // methods: ["*"]
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
     }
 })
 startWebsocket(io)
@@ -36,6 +39,7 @@ app.use(express.static('public'))
 
 // app.use(cors())
 app.use(cors(corsOrigin));
+app.options("", cors(corsOrigin))
 app.use(bodyparser.json());
 app.use(bodyparser.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -48,7 +52,7 @@ app.use('/category', categoryRouter)
 app.use('/token', tokenRouter)
 app.use('/room', roomRouter)
 app.use('/payment', paymentRouter)
-app.get('/',(req,res)=>{
+app.get('/', (req, res) => {
     res.send('Hello')
 })
 
@@ -57,19 +61,24 @@ app.get('/',(req,res)=>{
 const PORT = process.env.PORT || 6000
 const URI = process.env.URI_KEY
 
-mongoose.set("strictQuery", true);
-server.listen(PORT, () => {
-    console.log(`server run ${PORT}`);
-})
-mongoose.connect(URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-}).then(() => {
-    console.log('connected db');
+try {
+    mongoose.set("strictQuery", true);
 
-}).catch(() => {
-    console.log('can not connect db');
-})
+    mongoose.connect(URI, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true
+    }).then(() => {
+        console.log('connected db');
+        server.listen(PORT, () => {
+            console.log(`server run ${PORT}`);
+        })
+    }).catch(() => {
+        console.log('can not connect db');
+    })
+} catch (error) {
+    console.log(error);
+}
+
 
 export default server
 export { io }
