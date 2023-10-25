@@ -19,8 +19,8 @@ env.config()
 
 const app = express()
 const corsOrigin = {
-    // origin: [process.env.CLIENT_URL, process.env.CLIENT_URL2, 'http://localhost:3000'],
-    origin: '',
+    origin: [process.env.CLIENT_URL, process.env.CLIENT_URL2, 'http://localhost:3000'],
+    // origin: '',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
 };
