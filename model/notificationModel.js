@@ -15,14 +15,19 @@ const schema = mongoose.Schema({
         default: 'infor'
         //warning
     },
-    recipient: { // id người nhận
-        type: mongoose.Types.ObjectId,
-        ref: 'auction_user'
-    },
+    recipient: [
+        { // id người nhận
+            type: mongoose.Types.ObjectId,
+            ref: 'auction_user'
+        }
+    ],
     read: {
         type: Boolean,
         default: false
     },
+    link: {
+        type: String
+    }
 },
     { timestamps: true })
 

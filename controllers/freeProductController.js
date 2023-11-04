@@ -70,10 +70,29 @@ const getAllFreeProducts = async (req, res) => {
         const limit = req.params.limit
         let data
         if (limit) {
-            data = await freeProductModel.find({ status: 'Đã được duyệt' }).populate('category').limit(limit)
+            data = await freeProductModel.find({ status: 'Đã được duyệt', outOfStock: false }).populate('category').sort({createdAt:1}).limit(limit)
         } else {
-            data = await freeProductModel.find({ status: 'Đã được duyệt' }).populate('category')
+            data = await freeProductModel.find({ status: 'Đã được duyệt', outOfStock: false }).populate('category').sort({createdAt:1})
         }
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success', data })
+
+    } catch (error) {
+        return res.status(500)
+    }
+}
+
+const getFreeProductsByEmail = async (req, res) => {
+    try {
+        const email = req.params.email
+        const user = await userModel.findOne({ email })
+        if (!user) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        const data = await freeProductModel.find({ status: 'Đã được duyệt', owner: user._id }).populate('category')
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
@@ -268,7 +287,7 @@ const confirmSharingProduct = async (req, res) => {
             const notification = new notificationModel({
                 content: `Chúc mừng bạn nhận được sản phẩm "${update.name}" từ "${product.owner.email}", hãy liện hệ với họ để nhận nhé!`,
                 type: 'success',
-                recipient: update.receiver,
+                recipient: [update.receiver],
                 img: update.images[0] || ''
             })
 
@@ -288,4 +307,4 @@ const confirmSharingProduct = async (req, res) => {
     }
 }
 
-export { createFreeProduct, getAllFreeProducts, getProductById, confirmSharingProduct, getParticipationList, signUpToReceive, getProductsByStatus, editFreeProduct }
+export { createFreeProduct, getFreeProductsByEmail, getAllFreeProducts, getProductById, confirmSharingProduct, getParticipationList, signUpToReceive, getProductsByStatus, editFreeProduct }

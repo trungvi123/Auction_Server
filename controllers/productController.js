@@ -18,18 +18,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 
-
-
 const getPrepareToStart = async (req, res) => {
     try {
-        const data = await productModel.find({ status: 'Đã được duyệt' }).sort({ startTime: 1 })
+        const data = await productModel.find({ status: 'Đã được duyệt' }).sort({ startTime: 1 }).limit(9)
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
         return res.status(200).json({ status: 'success', data })
     } catch (error) {
         return res.status(500)
-
     }
 }
 
@@ -104,6 +101,31 @@ const getProducts = async (req, res) => {
 const getAllProducts = async (req, res) => {
     try {
         const data = await productModel.find({ status: 'Đã được duyệt' }).populate('category')
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success', data })
+
+    } catch (error) {
+        return res.status(500)
+    }
+}
+
+const getProductsByEmail = async (req, res) => {
+    try {
+        const email = req.params.email
+        const user = await userModel.findOne({ email: email })
+        if (!user) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        const data = await productModel.find({
+            $and: [
+                { status: 'Đã được duyệt' },
+                { owner: user._id }
+            ]
+        }).populate('category')
+
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
@@ -443,8 +465,8 @@ const updateAuctionEnded = async (req, res) => {
             return res.status(400).json({ status: 'failure' })
         }
 
-        if (data.auctionEnded === false) {
-            if (type === 'bid') {  // or buy
+        if (type === 'bid') {  // or buy
+            if (data.auctionEnded === false) {
                 if (new Date(data.endTime).getTime() <= new Date().getTime()) {
 
                     const result = await productModel.findByIdAndUpdate(id, {
@@ -468,7 +490,7 @@ const updateAuctionEnded = async (req, res) => {
                     const notification = new notificationModel({
                         content: `Bạn đã đấu giá thành công sản phẩm "${result.name}"`,
                         type: 'success',
-                        recipient: result.winner,
+                        recipient: [result.winner],
                         img: result.images[0] || ''
                     })
 
@@ -490,63 +512,68 @@ const updateAuctionEnded = async (req, res) => {
                 } else {
                     return res.status(400).json({ status: 'failure' })
                 }
-            } else { // type = buy
-                if (data.auctionStarted && !data.auctionEnded) { // chir mua khi đã bắt đầu và chưa kết thúc
-                    const user = await userModel.findById(idUser)
-                    if (!user) {
-                        return res.status(400).json({ status: 'failure', msg: 'User not found' })
-                    }
 
-
-                    const result = await productModel.findByIdAndUpdate(id, {
-                        auctionEnded: true,
-                        stateSlug: 'da-ket-thuc',
-                        state: 'Đã kết thúc',
-                        sold: true,
-                        soldAt: new Date(),
-                        purchasedBy: user._id,
-                        outOfDatePayment: outOfDate
-                    }, { new: true }).session(session).populate('category owner')
-
-                    const result2 = await userModel.findByIdAndUpdate(user._id,
-                        {
-                            $push: { purchasedProduct: result._id }
-                        }
-                        , { new: true }
-                    ).session(session)
-                    if (!result || !result2) {
-                        await session.abortTransaction();
-                        session.endSession();
-                        return res.status(400).json({ status: 'failure', msg: 'Đã xảy ra lỗi!' })
-                    }
-                    //xu li tao thong bao va thong bao den nguoi dung
-                    const notification = new notificationModel({
-                        content: `Bạn đã mua ngay thành công sản phẩm "${result.name}"`,
-                        type: 'success',
-                        recipient: result.purchasedBy,
-                        img: result.images[0] || ''
-                    })
-
-                    await notification.save({ session })
-
-                    const receiver = await userModel.findById(result.purchasedBy)
-                    receiver.notification.unshift(notification._id)
-                    await receiver.save({ session })
-
-                    io.in(result.purchasedBy.toString()).emit('new_notification', 'new')
-
-
-                    await session.commitTransaction();
-                    session.endSession();
-                    return res.status(200).json({
-                        status: 'success',
-                        data: result
-                    })
-                }
+            } else {
+                return res.status(200).json({
+                    status: 'success',
+                    data: data
+                })
             }
-        }else {
-            return res.status(200).json({ status: 'failure' })
+        } else { // type = buy
+            if (data.auctionStarted && !data.auctionEnded) { // chir mua khi đã bắt đầu và chưa kết thúc
+
+                const user = await userModel.findById(idUser)
+                if (!user) {
+                    return res.status(400).json({ status: 'failure', msg: 'User not found' })
+                }
+
+
+                const result = await productModel.findByIdAndUpdate(id, {
+                    auctionEnded: true,
+                    stateSlug: 'da-ket-thuc',
+                    state: 'Đã kết thúc',
+                    sold: true,
+                    soldAt: new Date(),
+                    purchasedBy: user._id
+                }, { new: true }).session(session).populate('category owner')
+
+                const result2 = await userModel.findByIdAndUpdate(user._id,
+                    {
+                        $push: { purchasedProduct: result._id }
+                    }
+                    , { new: true }
+                ).session(session)
+
+                if (!result || !result2) {
+                    await session.abortTransaction();
+                    session.endSession();
+                    return res.status(400).json({ status: 'failure', msg: 'Đã xảy ra lỗi!' })
+                }
+                //xu li tao thong bao va thong bao den nguoi dung
+                const notification = new notificationModel({
+                    content: `Bạn đã mua ngay thành công sản phẩm "${result.name}"`,
+                    type: 'success',
+                    recipient: [result.purchasedBy],
+                    img: result.images[0] || ''
+                })
+
+                await notification.save({ session })
+
+                const receiver = await userModel.findById(result.purchasedBy)
+                receiver.notification.unshift(notification._id)
+                await receiver.save({ session })
+
+                io.in(result.purchasedBy.toString()).emit('new_notification', 'new')
+
+                await session.commitTransaction();
+                session.endSession();
+                return res.status(200).json({
+                    status: 'success',
+                    data: result
+                })
+            }
         }
+
 
     } catch (error) {
         await session.abortTransaction();
@@ -555,28 +582,6 @@ const updateAuctionEnded = async (req, res) => {
     }
 }
 
-// const shareProductOnFacebook = async (req, res) => {
-//     try {
-//         const { id, type } = req.body
-//         let product
-//         if (type === 'free') {
-//             product = await freeProductModel.findById(id)
-//         } else {
-//             product = await productModel.findById(id)
-//         }
-
-//         if (!product) {
-//             return res.status(400).send("Not found");
-//         }
-//         const folderPath = path.join(__dirname, '../html', 'share.html');
-//         // console.log(folderPath);
-
-//         return res.sendFile(folderPath);
-
-//     } catch (error) {
-//         return res.status(500)
-//     }
-// }
 
 
 const approveProduct = async (req, res) => {
@@ -589,7 +594,7 @@ const approveProduct = async (req, res) => {
                 status: 'Đã được duyệt',
                 stateSlug: 'dang-dien-ra',
                 state: 'Đang diễn ra'
-            })
+            }).populate('owner')
 
             const currentTime = new Date(data.createdAt)
             const currentYear = currentTime.getFullYear()
@@ -619,7 +624,7 @@ const approveProduct = async (req, res) => {
         } else {
             data = await productModel.findByIdAndUpdate(id, {
                 status: 'Đã được duyệt'
-            })
+            }).populate('owner')
 
             const currentTime = new Date(data.createdAt)
             const currentYear = currentTime.getFullYear()
@@ -653,11 +658,9 @@ const approveProduct = async (req, res) => {
         const notification = new notificationModel({
             content: `Sản phẩm "${data.name}" của bạn đã được duyệt!`,
             type: 'success',
-            recipient: data.owner,
+            recipient: [data.owner],
             img: data.images[0] || ''
-
         })
-
 
         await notification.save()
 
@@ -665,9 +668,8 @@ const approveProduct = async (req, res) => {
         receiver.notification.unshift(notification._id)
         await receiver.save()
 
-        io.in(data.owner.toString()).emit('new_notification', 'new')
 
-
+        await notificationToFollower(data.owner.follow, data)
 
         return res.status(200).json({ status: 'success' })
 
@@ -675,6 +677,31 @@ const approveProduct = async (req, res) => {
         return res.status(500)
     }
 }
+
+const notificationToFollower = async (followList, productInfor) => {
+    // gửi thông báo cho các người dùng theo dõi
+    const notif = new notificationModel({
+        content: productInfor.isFree ? `${productInfor.owner.email} vừa chia sẻ sản phẩm mới đến mọi người!` : `${productInfor.owner.email} vừa thêm một cuộc đấu giá mới!`,
+        type: 'infor',
+        recipient: followList,
+        img: productInfor.images[0] || '',
+        link: productInfor.isFree ? `/chi-tiet-dau-gia/${productInfor._id}` : `/chi-tiet-chia-se/${productInfor._id}`
+    })
+    await notif.save()
+    let index = 0
+    for (const item of followList) {
+        const receiver = await userModel.findById(item)
+        receiver.notification.unshift(notif._id)
+        await receiver.save()
+        if (index === 0) {
+            io.in(item.toString()).in(productInfor.owner.toString()).emit('new_notification', 'new')
+        } else {
+            io.in(item.toString()).emit('new_notification', 'new')
+        }
+        index = 1
+    }
+}
+
 const refuseProduct = async (req, res) => {
     try {
         const id = req.params.id
@@ -698,7 +725,7 @@ const refuseProduct = async (req, res) => {
         const notification = new notificationModel({
             content: `Sản phẩm "${data.name}" của bạn đã bị từ chối!`,
             type: 'warning',
-            recipient: data.owner,
+            recipient: [data.owner],
             img: data.images[0] || ''
 
         })
@@ -743,7 +770,7 @@ const approveAgainProduct = async (req, res) => {
         const notification = new notificationModel({
             content: `Sản phẩm "${data.name}" của bạn đã được xem xét lại và đã được duyệt!`,
             type: 'success',
-            recipient: data.owner,
+            recipient: [data.owner],
             img: data.images[0] || ''
 
         })
@@ -780,7 +807,7 @@ const updateShipping = async (req, res) => {
         const notification = new notificationModel({
             content: `Sản phẩm "${product.name}" đang trên đường giao đến bạn!`,
             type: 'infor',
-            recipient: userId,
+            recipient: [userId],
             img: product.images[0] || ''
         })
 
@@ -838,8 +865,11 @@ const updateBidForProduct_server = async (id, infor) => {
     }
 }
 
+
+
+
 export {
-    getProductsByStatus, createProduct,
+    getProductsByStatus, createProduct, getProductsByEmail,
     updateAuctionEnded, updateAuctionStarted, getBidsById,
     updateBidForProduct_server, getCurrentPriceById_server,
     updateCurrentPriceById_server, getCurrentPriceById, getProductById,

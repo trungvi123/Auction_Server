@@ -1,6 +1,6 @@
 import express from "express";
 import {
-    createProduct, updateAuctionEnded,
+    createProduct, updateAuctionEnded,getProductsByEmail,
     getProductById, getBidsById, updateAuctionStarted, getPrepareToStart,
     getProducts, getCurrentPriceById, deleteProduct, updateShipping, editProduct, getProductsByStatus, getAllProducts, search
 } from "../controllers/productController.js";
@@ -18,6 +18,7 @@ router.get('/bids/:id', getBidsById);
 router.get('/all/', getAllProducts);
 router.get('/page/:page', getProducts);
 router.get('/edit/auctionStarted/:id', updateAuctionStarted)
+router.get('/getProductsByEmail/:email', getProductsByEmail);
 router.get('/:id', getProductById);
 
 

@@ -1,5 +1,5 @@
-import { getCurrentPriceById_server, updateCurrentPriceById_server, updateBidForProduct_server } from "../controllers/productController.js";
-import { updateBidsForUserById_server } from "../controllers/userController.js";
+import { getCurrentPriceById_server, updateCurrentPriceById_server, updateBidForProduct_server,  } from "../controllers/productController.js";
+import { updateBidsForUserById_server,handleMilestone_server } from "../controllers/userController.js";
 
 const startWebsocket = (io) => {
     io.on('connection', (socket) => {
@@ -10,7 +10,11 @@ const startWebsocket = (io) => {
         socket.on('join_Notification_Room', (data) => {
             socket.join(data)
         })
-    
+
+        socket.on('milestone', async (data) => {
+            await handleMilestone_server(data)
+
+        })
 
         socket.on('bid_price', async (data) => {
             const idProduct = await getCurrentPriceById_server(data.product)

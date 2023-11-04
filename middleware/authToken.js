@@ -10,6 +10,7 @@ export const checkAccessToken = async (req, res, next) => {
       if (err){
         return res.status(401).json({ status: "failure", msg: "Invalid token" });
       }
+      req.dataFromToken = data
       next();
     });
   } catch (error) {

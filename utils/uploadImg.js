@@ -19,6 +19,15 @@ const storage2 = multer.diskStorage({
     },
 });
 
+const storage3 = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'public/rate');
+    },
+    filename: function (req, file, cb) {
+        cb(null, Date.now() + '-' + file.originalname);
+    },
+});
+
 const isImage = (req, file, callback) => {
     if (file.mimetype.startsWith('image')) {
         callback(null, true)
@@ -37,5 +46,11 @@ const AdminUpload = multer({
     fileFilter: isImage,
 });
 
+const RateUpload = multer({
+    storage: storage3,
+    fileFilter: isImage,
+});
+
 export default upload
 export { AdminUpload }
+export { RateUpload }

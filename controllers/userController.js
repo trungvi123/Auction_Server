@@ -13,12 +13,26 @@ import { notificationModel } from "../model/notificationModel.js";
 import { io } from "../index.js";
 import { statisticModel } from "../model/statisticModel.js";
 import { payouts } from "./adminController.js";
+import { rateModel } from "../model/rateModel.js";
 
 
 const getUserById = async (req, res) => {
     try {
         const idUser = req.params.id
-        const user = await userModel.findById(idUser).select('_id emailPaypal address birthday idCard firstName lastName email address phoneNumber')
+        const user = await userModel.findById(idUser).select('_id followProductPreStart verifyAccount followProductPreEnd emailPaypal address birthday idCard firstName lastName email address phoneNumber')
+        if (!user) {
+            return res.status(400).json({ status: 'failure', errors: { msg: 'thất bại!' } })
+        }
+        return res.status(200).json({ status: 'success', data: user })
+    } catch (error) {
+        return res.status(500).json({ status: 'failure' });
+    }
+};
+
+const getUserByEmail = async (req, res) => {
+    try {
+        const email = req.params.email
+        const user = await userModel.findOne({ email }).select('rate starRate createdAt follow followTo -_id').populate('rate')
         if (!user) {
             return res.status(400).json({ status: 'failure', errors: { msg: 'thất bại!' } })
         }
@@ -274,6 +288,62 @@ const changePass = async (req, res) => {
 
     }
 }
+
+
+const createOTP = async (req, res) => {
+    try {
+        const dataFromToken = req.dataFromToken
+        const user = await userModel.findById(dataFromToken)
+        // Tạo mã xác thực ngẫu nhiên
+        const OTP = Math.floor(100000 + Math.random() * 900000).toString();
+
+        // Lưu thông tin xác thực vào cơ sở dữ liệu
+        user.lastOTP = { OTP }
+        await user.save()
+        // Gửi mã xác thực đến email (mô phỏng)
+        const subject = 'Mã xác minh'
+        const text = 'Xin chào,'
+        const html = `
+        <p>Đây là mã xác minh của bạn ${OTP}</p>
+        <p>Mã này sẽ có hiệu lực trong 60 giây!</p>
+        `
+        const { transporter, mailOption } = configMail(dataFromToken.email, subject, text, html)
+        transporter.sendMail(mailOption, (err) => {
+            if (err) {
+                console.log(err);
+                return res.status(500).json({ status: 'failure', message: "Gửi mail thất bại!" });
+
+            } else {
+                return res.status(200).json({ status: 'success', message: "success" });
+            }
+        });
+
+    } catch (error) {
+        return res.status(500).json({ status: 'failure' });
+    }
+}
+
+const verifyAccount = async (req, res) => {
+    try {
+        const dataFromToken = req.dataFromToken
+        const { OTP } = req.body;
+        const user = await userModel.findById(dataFromToken)
+        const currentTime = new Date();
+        const timeDiff = (currentTime - user.lastOTP.createdAt) / 1000;
+        if (OTP && user.lastOTP.OTP === OTP && timeDiff <= 60) {
+            user.verifyAccount = true
+            user.lastOTP = { OTP: '' }
+
+            await user.save()
+            return res.status(200).json({ status: 'success', message: "success" });
+        } else {
+            return res.status(401).json({ message: 'Mã xác thực không hợp lệ hoặc đã hết hạn.' });
+        }
+    } catch (error) {
+        return res.status(500).json({ status: 'failure' });
+    }
+}
+
 
 const updateBidsForUserById_server = async (id, idProd) => {
     try {
@@ -615,13 +685,13 @@ const approveReport = async (req, res) => {
         const new1 = new notificationModel({
             content: 'Chúng tôi cảm ơn bạn vì đã tố cáo những tài khoản có hành vi vi phạm điều khoản!',
             type: 'infor',
-            recipient: reportUpd.accuser
+            recipient: [reportUpd.accuser]
         })
 
         const new2 = new notificationModel({
             content: 'Chúng tôi nhận thấy bạn có hành vi vi phạm điều khoản của chúng tôi! Nếu những hành vi này còn xảy ra, chúng tôi bắt buộc phải khóa tài khoản của bạn!',
             type: 'warning',
-            recipient: reportUpd.accused
+            recipient: [reportUpd.accused]
         })
         await new1.save({ session })
         await new2.save({ session })
@@ -692,14 +762,14 @@ const handleFinishTransaction = async (req, res) => {
             const notification = new notificationModel({
                 content: `Sản phẩm "${update.name}" đã được giao thành công!`,
                 type: 'success',
-                recipient: update.owner,
+                recipient: [update.owner],
                 img: update.images[0] || ''
             })
             const notification2 = new notificationModel({
                 content: `Chúng tôi vừa thanh toán cho bạn sản phẩm có tên "${update.name}", 
                 vui lòng kiểm tra lại! Nếu có bất kỳ sai sót nào xin vui lòng liên hệ với chúng tôi!`,
                 type: 'success',
-                recipient: update.owner,
+                recipient: [update.owner],
                 img: update.images[0] || ''
             })
             await notification.save()
@@ -809,11 +879,367 @@ const deleteReport = async (req, res) => {
 }
 
 
+// --------------------- REPORT HANDLE-------------------
+const createRate = async (req, res) => {
+    const session = await mongoose.startSession()
+    session.startTransaction()
+    try {
+        const { id, comment, star } = req.body
+
+        const product = await productModel.findById(id).populate('owner winner purchasedBy')
+        if (!product) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        const fromName = !product.sold ? `${product.winner.firstName} ${product.winner.lastName}` : `${product.purchasedBy.firstName} ${product.purchasedBy.lastName}`
+
+        let from = {
+            userId: !product.sold ? product.winner._id : product.purchasedBy._id,
+            name: fromName,
+            avatar: `https://ui-avatars.com/api/name=${fromName}&background=random`
+        }
+        let to = product.owner._id
+
+
+        const images = req.files.map((file) => {
+            return `${process.env.BASE_URL}/rate/${file.filename}`
+        });
+
+        const rate = new rateModel({
+            from, to, comment, images, star: Number(star), product: id
+        })
+
+        const newRate = await rate.save({ session })
+        if (!newRate) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        const user = await userModel.findById(product.owner._id).populate('rate')
+        const starRate = await handleStarRate(user, newRate)
+        if (!starRate) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        user.rate.unshift(newRate._id)
+        user.starRate = starRate
+        product.rate = rate._id
+
+
+        await product.save({ session })
+
+        //xu li tao thong bao va thong bao den nguoi dung
+        const notification = new notificationModel({
+            content: `Bạn có một đánh giá mới từ sản phẩm ${product.name}`,
+            type: 'infor',
+            recipient: [product.owner._id],
+            img: product.images[0] || ''
+        })
+
+        await notification.save({ session })
+
+        user.notification.unshift(notification._id)
+        await user.save({ session })
+
+        io.in(product.owner._id.toString()).emit('new_notification', 'new')
+
+        await session.commitTransaction()
+        session.endSession()
+        return res.status(200).json({ status: 'success', message: "success" });
+
+    } catch (error) {
+        await session.abortTransaction()
+        session.endSession()
+        return res.status(500)
+    }
+}
+
+const replyComment = async (req, res) => {
+    try {
+        const rateId = req.params.rateId
+        const { comment } = req.body
+
+        const dataFromToken = req.dataFromToken
+
+        const rate = await rateModel.findById(rateId).populate('product')
+
+        if (!rate) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        if (rate.to.toString() !== dataFromToken._id) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        rate.replyComment = comment
+        await rate.save()
+
+
+        //xu li tao thong bao va thong bao den nguoi dung
+        const notification = new notificationModel({
+            content: `Người bán đã phản hồi một đánh giá của bạn!`,
+            type: 'infor',
+            recipient: [rate.from.userId],
+            img: rate.product.images[0] || ''
+        })
+
+        await notification.save()
+
+        const receiver = await userModel.findById(rate.from.userId)
+        receiver.notification.unshift(notification._id)
+        await receiver.save()
+
+        io.in(rate.from.userId.toString()).emit('new_notification', 'new')
+
+
+        return res.status(200).json({ status: 'success', message: "success" });
+    } catch (error) {
+        return res.status(500)
+    }
+}
+
+const handleStarRate = async (user, newRate) => {
+    try {
+        let currStar = user.rate.reduce((accumulator, currentValue) => accumulator + currentValue.star, 0)
+        currStar += newRate.star
+        let countRate = user.rate.length + 1
+        let starRate = currStar / countRate
+        return starRate
+    } catch (error) {
+        return false
+    }
+}
+
+// --------------------- Follow user HANDLE-------------------
+
+const addFollow = async (req, res) => {
+    try {
+        const { followEmail, myId } = req.body
+        const dataFromToken = req.dataFromToken
+
+        if (followEmail === dataFromToken.email) { // tu follow
+            return res.status(400).json({ status: 'failure', msg: 'Bạn không thể tự theo dõi mình' })
+        }
+
+        if (dataFromToken._id !== myId) { // lay id cua nguoi khac roi follow
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        // người đc follow
+        const user = await userModel.findOne({ email: followEmail })
+        if (user.follow.includes(myId)) {
+            return res.status(400).json({ status: 'failure', msg: 'Bạn đã theo dõi người này rồi!' })
+        }
+        user.follow.push(myId)
+        if (!user) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        // người follow
+        const myAcc = await userModel.findByIdAndUpdate(myId, {
+            $push: { followTo: user._id }
+        }, { new: true })
+        if (!myAcc) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        //Thông báo cho người được follow
+        const notification = new notificationModel({
+            content: `Bạn có một lượt theo dõi mới từ ${myAcc.email}`,
+            type: 'infor',
+            recipient: [user._id],
+            // img: rate.product.images[0] || ''
+        })
+
+        await notification.save()
+        user.notification.unshift(notification._id)
+        await user.save()
+
+        io.in(user._id.toString()).emit('new_notification', 'new')
+
+
+        return res.status(200).json({ status: 'success', message: "success" });
+
+    } catch (error) {
+        return res.status(500)
+    }
+}
+
+const unFollow = async (req, res) => {
+    try {
+        const { followEmail, myId } = req.body
+        const dataFromToken = req.dataFromToken
+
+        if (dataFromToken._id !== myId) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        // người bị unfollow
+        const user = await userModel.findOneAndUpdate({ email: followEmail }, {
+            $pull: {
+                follow: myId
+            }
+        }, { new: true })
+
+
+        if (!user) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        // người follow
+        const myAcc = await userModel.findOneAndUpdate({ email: dataFromToken.email }, {
+            $pull: {
+                followTo: user._id
+            }
+        }, { new: true })
+        if (!myAcc) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success', message: "success" });
+
+    } catch (error) {
+        return res.status(500)
+    }
+}
+
+
+// --------------------- Follow product HANDLE-------------------
+
+const addFollowProduct = async (req, res) => {
+    try {
+        const { productId, time, type } = req.body
+        const dataFromToken = req.dataFromToken
+        const product = await productModel.findById(productId)
+        if (!product) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        const user = await userModel.findById(dataFromToken._id)
+
+        if (type === 'pre-start') {
+            // Giá trị thời gian ban đầu
+            const originalTime = new Date(product.startTime);
+
+            // Sao chép giá trị thời gian
+            const previousTime = originalTime.getTime() - (time * 60000);
+
+            const check = user.followProductPreStart.find((item) => item.productId.toString() === productId)
+            if (check) {
+                return res.status(400).json({ status: 'failure' })
+            }
+
+            user.followProductPreStart.push({
+                productId,
+                time: previousTime,
+                timeInput: time,
+                type: 'pre-start'
+            })
+
+            await user.save()
+
+        } else {
+            const originalTime = new Date(product.endTime);
+
+            // Sao chép giá trị thời gian
+            const previousTime = originalTime.getTime() - (time * 60000);
+
+            const check = user.followProductPreEnd.find((item) => item.productId.toString() === productId)
+            if (check) {
+                return res.status(400).json({ status: 'failure' })
+            }
+
+            user.followProductPreEnd.push({
+                productId,
+                time: previousTime,
+                timeInput: time,
+                type: 'pre-end'
+            })
+
+            await user.save()
+        }
+        const check = product.follower.find((item) => item === user._id)
+        if (!check) {
+            product.follower.push(user._id)
+            await product.save()
+        }
+
+
+
+        return res.status(200).json({ status: 'success', msg: "success" });
+
+    } catch (error) {
+        return res.status(500)
+    }
+}
+
+const unFollowProduct = async (req, res) => {
+    try {
+        const { productId } = req.body
+        const dataFromToken = req.dataFromToken
+
+        const user = await userModel.updateOne({ _id: dataFromToken._id }, {
+            $pull: {
+                followProductPreStart: { productId: productId },
+                followProductPreEnd: { productId: productId }
+            }
+        }, { new: true })
+
+        const productUpdate = await productModel.updateOne({ _id: productId },
+            {
+                $pull: { follower: dataFromToken._id }
+            }, { new: true })
+
+        if (!user) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        if (!productUpdate) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        return res.status(200).json({ status: 'success', msg: "success" });
+
+    } catch (error) {
+        return res.status(500)
+    }
+}
+
+const handleMilestone_server = async (data) => {
+    const product = await productModel.findById(data.productId)
+    const client = await userModel.findById(data.clientId)
+
+    //Thông báo cho người được follow
+    const notification = new notificationModel({
+        content: `Cuộc đấu giá "${product.name}" sẽ ${data.type === 'pre-start' ? 'bắt đầu' : 'kết thúc'}  sau khoảng ${data.timeInput} phút nữa!`,
+        type: 'infor',
+        recipient: [data.clientId],
+        img: product.images[0] || '',
+        link: `/chi-tiet-dau-gia/${product._id}`
+    })
+
+    await notification.save()
+    client?.notification.unshift(notification._id)
+    await client?.save()
+
+    await userModel.updateOne({ _id: data.clientId }, {
+        $pull: {
+            followProductPreStart: { _id: data.milestoneId },
+            followProductPreEnd: { _id: data.milestoneId }
+        }
+    }, { new: true })
+
+    await productModel.updateOne({ _id: data.productId },
+        {
+            $pull: { follower: data.clientId }
+        }, { new: true })
+
+
+    io.in(client?._id.toString()).emit('new_notification', 'milestone_new')
+
+}
 
 export {
+    createRate, handleMilestone_server, replyComment, getUserByEmail, addFollow, unFollow, addFollowProduct, unFollowProduct,
     getParticipateReceiving, getRefuseFreeProducts, sendMailToUser, getNotifications, updateNotifications,
     getRefuseProducts, getBidsProducts, getReceivedProducts, getFreeProductsByOwner, deleteNotification,
-    getProductsByOwner, deleteProductHistory, getPurchasedProducts, getWinProducts, updateProfile,
+    getProductsByOwner, deleteProductHistory, getPurchasedProducts, getWinProducts, updateProfile, createOTP, verifyAccount,
     deleteUserById, updateBidsForUserById_server, getUserById, signIn, signUp, resetPass, deleteReport,
     changePass, updateBlockUserById, getAllUser, approveReport, createReport, getReports, handleFinishTransaction
 };

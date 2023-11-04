@@ -44,6 +44,22 @@ const schema = mongoose.Schema({
         type: String,
         require: true,
     },
+    reliability: {
+        type: String,
+    },
+    verifyAccount: {
+        type: Boolean,
+        default: false
+    },
+    lastOTP: {
+        OTP: {
+            type: String,
+        },
+        createdAt: {
+            type: Date,
+            default: Date.now,
+        }
+    },
     purchasedProduct: [
         {
             type: mongoose.Types.ObjectId,
@@ -92,6 +108,13 @@ const schema = mongoose.Schema({
             ref: 'auction_room',
         }
     ],
+    rate: [{
+        type: mongoose.Types.ObjectId,
+        ref: 'auction_rate',
+    }],
+    starRate: {
+        type: Number
+    },
     myBadList: [ // danh sách những report về bản thân
         {
             type: mongoose.Types.ObjectId,
@@ -108,6 +131,52 @@ const schema = mongoose.Schema({
         {
             type: mongoose.Types.ObjectId,
             ref: 'auction_notification',
+        }
+    ],
+    followTo: [
+        {
+            type: mongoose.Types.ObjectId,
+            ref: 'auction_user',
+        }
+    ],
+    follow: [
+        {
+            type: mongoose.Types.ObjectId,
+            ref: 'auction_user',
+        }
+    ],
+    followProductPreStart: [
+        {
+            productId: {
+                type: mongoose.Types.ObjectId,
+                ref: 'auction_product',
+            },
+            time: {
+                type: String
+            },
+            timeInput: {
+                type: String
+            },
+            type: {
+                type: String
+            },
+        }
+    ],
+    followProductPreEnd: [
+        {
+            productId: {
+                type: mongoose.Types.ObjectId,
+                ref: 'auction_product',
+            },
+            time: {
+                type: String
+            },
+            timeInput: {
+                type: String
+            },
+            type: {
+                type: String
+            },
         }
     ],
     warnLevel: {

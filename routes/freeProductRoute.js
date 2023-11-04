@@ -1,14 +1,13 @@
 import express from "express";
-import { createFreeProduct, getProductById, signUpToReceive,getAllFreeProducts, confirmSharingProduct, getParticipationList, getProductsByStatus, editFreeProduct } from '../controllers/freeProductController.js'
+import { createFreeProduct, getProductById, getFreeProductsByEmail, signUpToReceive, getAllFreeProducts, confirmSharingProduct, getParticipationList, getProductsByStatus, editFreeProduct } from '../controllers/freeProductController.js'
 import { checkAccessToken } from "../middleware/authToken.js";
 import { checkFreeProduct } from "../middleware/checkRequest.js";
 import upload from "../utils/uploadImg.js";
 
 const router = express.Router();
 router.get('/getParticipationList/:id', checkAccessToken, getParticipationList);
-
+router.get('/getFreeProductsByEmail/:email', getFreeProductsByEmail);
 router.get('/all/:limit?', getAllFreeProducts);
-
 router.get('/:id', getProductById);
 
 

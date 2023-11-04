@@ -98,9 +98,6 @@ const schema = mongoose.Schema({
         default: 'chua-thanh-toan',
         // Đã thanh toán
     },
-    outOfDatePayment: {
-        type: String,
-    },
     owner: { // người tạo 
         type: mongoose.Types.ObjectId,
         ref: 'auction_user',
@@ -117,6 +114,10 @@ const schema = mongoose.Schema({
     room: { // người bid hiện tại
         type: mongoose.Types.ObjectId,
         ref: 'auction_room',
+    },
+    rate: {
+        type: mongoose.Types.ObjectId,
+        ref: 'auction_rate',
     },
     paid: {
         type: Boolean,
@@ -142,6 +143,12 @@ const schema = mongoose.Schema({
                 default: Date.now,
             },
         },
+    ],
+    follower: [
+        {
+            type: mongoose.Types.ObjectId,
+            ref: 'auction_user',
+        }
     ],
     auctionTypeSlug: {
         type: String,

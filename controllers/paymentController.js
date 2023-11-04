@@ -121,7 +121,7 @@ const captureOrderByPayPalController = async (req, res) => {
                 const notification = new notificationModel({
                     content: `Bạn vừa thanh toán thành công sản phẩm "${save.name}" với mã giao dịch là "${jsonResponse.id}".`,
                     type: 'success',
-                    recipient: userId,
+                    recipient: [userId],
                     img: save.images[0] || ''
                 })
 
