@@ -1,5 +1,6 @@
 import express from "express";
 import { getRoomByIdProd,joinRoom } from "../controllers/roomController.js";
+import { checkAccessTokenAndVerifyAccount } from "../middleware/authToken.js";
 
 const router = express.Router();
 
@@ -7,7 +8,7 @@ const router = express.Router();
 
 router.get('/:id', getRoomByIdProd) //id product
 
-router.post('/join', joinRoom);
+router.post('/join',checkAccessTokenAndVerifyAccount, joinRoom);
 
 
 

@@ -70,9 +70,28 @@ const getAllFreeProducts = async (req, res) => {
         const limit = req.params.limit
         let data
         if (limit) {
-            data = await freeProductModel.find({ status: 'Đã được duyệt', outOfStock: false }).populate('category').sort({createdAt:1}).limit(limit)
+            data = await freeProductModel.find({ status: 'Đã được duyệt' }).populate('category').sort({ createdAt: 1 }).limit(limit)
         } else {
-            data = await freeProductModel.find({ status: 'Đã được duyệt', outOfStock: false }).populate('category').sort({createdAt:1})
+            data = await freeProductModel.find({ status: 'Đã được duyệt' }).populate('category').sort({ createdAt: 1 })
+        }
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success', data })
+
+    } catch (error) {
+        return res.status(500)
+    }
+}
+
+const getFreeProducts = async (req, res) => {
+    try {
+        const limit = req.params.limit
+        let data
+        if (limit) {
+            data = await freeProductModel.find({ status: 'Đã được duyệt', outOfStock: false }).populate('category').sort({ createdAt: 1 }).limit(limit)
+        } else {
+            data = await freeProductModel.find({ status: 'Đã được duyệt', outOfStock: false }).populate('category').sort({ createdAt: 1 })
         }
         if (!data) {
             return res.status(400).json({ status: 'failure' })
@@ -186,61 +205,64 @@ const editFreeProduct = async (req, res) => {
         const { id, keepImgs, name, owner, oldCategory, category, description } = req.body
         const product = await freeProductModel.findById(id)
         // chỉ có người tạo mới có quyền sửa
-        if (product.owner.toString() === owner) {
-            const proOwner = await userModel.findById(owner).select('_id')
-            const proCategory = await categoryModel.findById(category).select('_id')
+        const dataFromToken = req.dataFromToken
+        if (dataFromToken._id !== product.owner.toString()) {
+            return res.status(400).json({ status: 'failure', msg: 'Bạn không có quyền thực hiện thao tác này!' });
+        }
+        const proOwner = await userModel.findById(owner).select('_id')
+        const proCategory = await categoryModel.findById(category).select('_id')
 
-            if (!proOwner) {
-                return res.status(400).json({ status: 'failure', errors: { msg: 'Không tìm thấy tài khoản người dùng!' } });
-            }
+        if (!proOwner) {
+            return res.status(400).json({ status: 'failure', errors: { msg: 'Không tìm thấy tài khoản người dùng!' } });
+        }
 
-            if (!proCategory) {
-                return res.status(400).json({ status: 'failure', errors: { msg: 'Danh mục không hợp lệ!' } });
-            }
-            if (keepImgs?.length > 0) {
-                await deleteImages(product, keepImgs)
+        if (!proCategory) {
+            return res.status(400).json({ status: 'failure', errors: { msg: 'Danh mục không hợp lệ!' } });
+        }
+        if (keepImgs?.length > 0) {
+            await deleteImages(product, keepImgs)
+        } else {
+            await deleteImages(product)
+        }
+        let images = req.files.map((file) => {
+            return `${process.env.BASE_URL}/uploads/${file.filename}`
+        });
+        if (keepImgs?.length > 0) {
+            if (Array.isArray(keepImgs)) {
+                images = [...keepImgs, ...images]
             } else {
-                await deleteImages(product)
+                images = [keepImgs, ...images]
             }
-            let images = req.files.map((file) => {
-                return `${process.env.BASE_URL}/uploads/${file.filename}`
-            });
-            if (keepImgs?.length > 0) {
-                if (Array.isArray(keepImgs)) {
-                    images = [...keepImgs, ...images]
-                } else {
-                    images = [keepImgs, ...images]
-                }
-            }
+        }
 
-            const newProduct = await freeProductModel.findByIdAndUpdate(id, {
-                name,
-                description,
-                category: proCategory,
-                owner: proOwner,
-                images
-            }, { new: true })
-            if (!newProduct) {
+        const newProduct = await freeProductModel.findByIdAndUpdate(id, {
+            name,
+            description,
+            category: proCategory,
+            owner: proOwner,
+            images
+        }, { new: true })
+        if (!newProduct) {
+            return res.status(400).json({ status: 'failure', errors: { msg: 'Cập nhật thất bại!' } });
+        }
+
+        // category thay đổi
+        if (oldCategory !== category) {
+            // xóa id sản phẩm ra khỏi cate cũ
+            const rs1 = await categoryModel.updateMany({ products: id }, { $pull: { products: id } })
+            //thêm id vào cate mới
+            const rs2 = await categoryModel.findByIdAndUpdate(
+                proCategory,
+                { $push: { products: newProduct._id } },
+                { new: true }
+            );
+
+            if (!rs1 || !rs2) {
                 return res.status(400).json({ status: 'failure', errors: { msg: 'Cập nhật thất bại!' } });
             }
-
-            // category thay đổi
-            if (oldCategory !== category) {
-                // xóa id sản phẩm ra khỏi cate cũ
-                const rs1 = await categoryModel.updateMany({ products: id }, { $pull: { products: id } })
-                //thêm id vào cate mới
-                const rs2 = await categoryModel.findByIdAndUpdate(
-                    proCategory,
-                    { $push: { products: newProduct._id } },
-                    { new: true }
-                );
-
-                if (!rs1 || !rs2) {
-                    return res.status(400).json({ status: 'failure', errors: { msg: 'Cập nhật thất bại!' } });
-                }
-            }
-            return res.status(200).json({ status: 'success', msg: 'Sửa sản phẩm thành công!' });
         }
+        return res.status(200).json({ status: 'success', msg: 'Sửa sản phẩm thành công!' });
+
 
     } catch (error) {
         return res.status(500).json({ status: 'failure', error })
@@ -254,7 +276,11 @@ const confirmSharingProduct = async (req, res) => {
         if (!product || product.receiver) {
             return res.status(400).json({ status: 'failure' })
         }
-        if (product.owner._id.toString() === owner) {
+        const dataFromToken = req.dataFromToken
+        if (dataFromToken._id !== product.owner.toString()) {
+            return res.status(400).json({ status: 'failure', msg: 'Bạn không có quyền thực hiện thao tác này!' });
+        }
+       
             let user
             if (type === 'email') {
                 user = await userModel.findOneAndUpdate({ email: req.body.email }, {
@@ -299,12 +325,12 @@ const confirmSharingProduct = async (req, res) => {
 
 
             return res.status(200).json({ status: 'success' })
-        }
-        return res.status(400).json({ status: 'failure' })
+        
+       
     } catch (error) {
         return res.status(500).json({ status: 'failure', error })
 
     }
 }
 
-export { createFreeProduct, getFreeProductsByEmail, getAllFreeProducts, getProductById, confirmSharingProduct, getParticipationList, signUpToReceive, getProductsByStatus, editFreeProduct }
+export { createFreeProduct, getFreeProductsByEmail, getFreeProducts, getAllFreeProducts, getProductById, confirmSharingProduct, getParticipationList, signUpToReceive, getProductsByStatus, editFreeProduct }

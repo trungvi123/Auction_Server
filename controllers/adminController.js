@@ -4,6 +4,9 @@ import { uiModel } from "../model/uiModel.js";
 import fs from 'fs/promises'
 import path, { dirname } from 'path'
 import { fileURLToPath } from 'url';
+import { contactModel } from "../model/contactModel.js";
+import configMail from "../utils/configMail.js";
+import exceljs from 'exceljs'
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -116,7 +119,7 @@ const deleteImageTemplate = async (deleteImg) => {
 
             let fileName = deleteImg.replace(`${process.env.BASE_URL}/ui/uploads/`, '');
             let filePath = path.join(folderPath, fileName);
-            await fs.unlink(filePath,(err)=>{
+            await fs.unlink(filePath, (err) => {
                 throw err
             });
         }
@@ -276,6 +279,7 @@ const payouts = async (emailPaypal, value, productId, productName) => {
         const clientIdAndSecret = `${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`;
         const base64 = Buffer.from(clientIdAndSecret).toString('base64')
 
+
         return fetch(authUrl, {
             method: 'POST',
             headers: {
@@ -331,6 +335,132 @@ const payouts = async (emailPaypal, value, productId, productName) => {
     }
 }
 
+const getNewContact = async (req, res) => {
+    try {
+        const data = await contactModel.find({ reply: false })
+
+        return res.status(200).json({ status: 'success', data })
+
+    } catch (error) {
+        return res.status(500)
+    }
+}
+
+const getContactReply = async (req, res) => {
+    try {
+        const data = await contactModel.find({ reply: true })
+
+        return res.status(200).json({ status: 'success', data })
+
+    } catch (error) {
+        return res.status(500)
+    }
+}
+
+const replyContact = async (req, res) => {
+    try {
+        const id = req.params.id
+        const { subject, email, html } = req.body
+        const contact = await contactModel.findById(id)
+        if (!contact) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        const { transporter, mailOption } = configMail(email, subject, '', html)
+        transporter.sendMail(mailOption, (err) => {
+            if (err) {
+                console.log(err);
+                res.status(500).json({ status: 'failure', message: "Gửi mail thất bại!" });
+            } else {
+                res.status(200).json({ status: 'success', message: "success" });
+            }
+        });
 
 
-export { createStatistic, getTemplateActive, activeTemplate, deleteTemplate, updateImgTemplate, updateTemplate, deleteStatistic, deleteImageTemplate, getAllStatistic, getStatisticByYear, payouts, createTemplate, getTemplates }
+    } catch (error) {
+        return res.status(500)
+    }
+}
+const handleExport = async (req, res) => {
+    try {
+        const { year, type } = req.params
+        let productTemp = {};
+        let freeProductTemp = {};
+        let userTemp = {};
+        let newsTemp = {};
+        const statistic = await statisticModel.findOne({ year })
+        if (!statistic) {
+            return res.status(400).json({ status: 'failure' })
+        }
+
+        for (let i = 1; i <= 12; i++) {
+            const check = statistic.months?.find(
+                (item) => item.month === i.toString()
+            );
+            if (type === 'product') {
+                productTemp[`thang${i}`] = check ? check.auctionCountInMonth : 0
+            } else if (type === 'freeProduct') {
+                freeProductTemp[`thang${i}`] = check ? check.freeProductCountInMonth : 0
+            } else if (type === 'user') {
+                userTemp[`thang${i}`] = check ? check.userCountInMonth : 0
+            } else {
+                newsTemp[`thang${i}`] = check ? check.newsCountInMonth : 0
+            }
+        }
+
+        const workbook = new exceljs.Workbook();
+        const worksheet = workbook.addWorksheet('Thống kê');
+        let worksheetColumns = []
+        let i = 1
+        if (type === 'product') {
+            for (const keydata in productTemp) {
+                worksheetColumns.push({
+                    header: `Tháng ${i}`, key: keydata, width: 15
+                })
+                i++
+            }
+        } else if (type === 'freeProduct') {
+            for (const keydata in freeProductTemp) {
+                worksheetColumns.push({
+                    header: `Tháng ${i}`, key: keydata, width: 15
+                })
+                i++
+            }
+        } else if (type === 'user') {
+            for (const keydata in userTemp) {
+                worksheetColumns.push({
+                    header: `Tháng ${i}`, key: keydata, width: 15
+                })
+                i++
+            }
+        } else {
+            for (const keydata in newsTemp) {
+                worksheetColumns.push({
+                    header: `Tháng ${i}`, key: keydata, width: 15
+                })
+                i++
+            }
+        }
+
+        worksheet.columns = worksheetColumns
+        if (type === 'product') {
+            worksheet.addRow(productTemp)
+        } else if (type === 'freeProduct') {
+            worksheet.addRow(freeProductTemp)
+        } else if (type === 'user') {
+            worksheet.addRow(userTemp)
+        } else {
+            worksheet.addRow(newsTemp)
+        }
+        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        res.setHeader("Content-Disposition", "attachment; filename=" + `${type}.xlsx`);
+        workbook.xlsx.write(res).then(() => res.end());
+    } catch (error) {
+        return res.status(500)
+
+    }
+};
+
+
+
+export { createStatistic, handleExport, getNewContact, replyContact, getContactReply, getTemplateActive, activeTemplate, deleteTemplate, updateImgTemplate, updateTemplate, deleteStatistic, deleteImageTemplate, getAllStatistic, getStatisticByYear, payouts, createTemplate, getTemplates }

@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 
-const configMail = (email, subject, text, html) => {
+const configMail = (email, subject, text='', html) => {
     try {
         let transporter = nodemailer.createTransport({
             service: "gmail",
@@ -9,7 +9,7 @@ const configMail = (email, subject, text, html) => {
             secure: true,
             auth: {
                 user: "jemcovintage@gmail.com", // generated ethereal user
-                pass: "vvcnojvelxkwolus", // generated ethereal password
+                pass: "dqouvtafluvasxpt", // generated ethereal password
             },
         });
 

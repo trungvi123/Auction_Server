@@ -28,6 +28,24 @@ const storage3 = multer.diskStorage({
     },
 });
 
+const storage4 = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'public/news');
+    },
+    filename: function (req, file, cb) {
+        cb(null, Date.now() + '-' + file.originalname);
+    },
+});
+
+const storage5 = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, 'public/users');
+    },
+    filename: function (req, file, cb) {
+        cb(null, Date.now() + '-' + file.originalname);
+    },
+});
+
 const isImage = (req, file, callback) => {
     if (file.mimetype.startsWith('image')) {
         callback(null, true)
@@ -51,6 +69,20 @@ const RateUpload = multer({
     fileFilter: isImage,
 });
 
+const NewsUpload = multer({
+    storage: storage4,
+    fileFilter: isImage,
+});
+
+const UserUpload = multer({
+    storage: storage5,
+    fileFilter: isImage,
+});
+
 export default upload
 export { AdminUpload }
 export { RateUpload }
+export { NewsUpload }
+export { UserUpload }
+
+

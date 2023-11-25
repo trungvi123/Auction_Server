@@ -17,6 +17,10 @@ const schema = mongoose.Schema({
                 type: Number,
                 default: 0
             },
+            newsCountInMonth: {
+                type: Number,
+                default: 0
+            },
             auctionCountInMonth: {
                 type: Number,
                 default: 0
@@ -28,6 +32,10 @@ const schema = mongoose.Schema({
         }
     ],
     userCount: {
+        type: Number,
+        default: 0
+    },
+    newsCount: {
         type: Number,
         default: 0
     },

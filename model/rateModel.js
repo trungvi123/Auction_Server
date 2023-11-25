@@ -22,6 +22,9 @@ const schema = mongoose.Schema({
         type: mongoose.Types.ObjectId,
         ref: 'auction_product'
     },
+    productName:{
+        type: String
+    },
     comment: {
         type: String
     },

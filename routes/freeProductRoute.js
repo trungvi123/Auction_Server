@@ -1,6 +1,6 @@
 import express from "express";
-import { createFreeProduct, getProductById, getFreeProductsByEmail, signUpToReceive, getAllFreeProducts, confirmSharingProduct, getParticipationList, getProductsByStatus, editFreeProduct } from '../controllers/freeProductController.js'
-import { checkAccessToken } from "../middleware/authToken.js";
+import { createFreeProduct,getFreeProducts, getProductById, getFreeProductsByEmail, signUpToReceive, getAllFreeProducts, confirmSharingProduct, getParticipationList, getProductsByStatus, editFreeProduct } from '../controllers/freeProductController.js'
+import { checkAccessToken,checkAccessTokenAndVerifyAccount } from "../middleware/authToken.js";
 import { checkFreeProduct } from "../middleware/checkRequest.js";
 import upload from "../utils/uploadImg.js";
 
@@ -8,14 +8,16 @@ const router = express.Router();
 router.get('/getParticipationList/:id', checkAccessToken, getParticipationList);
 router.get('/getFreeProductsByEmail/:email', getFreeProductsByEmail);
 router.get('/all/:limit?', getAllFreeProducts);
+router.get('/getFreeProducts/:limit?', getFreeProducts);
+
 router.get('/:id', getProductById);
 
 
-router.patch('/edit', checkAccessToken, checkFreeProduct, upload.array('images', 10), editFreeProduct);
+router.patch('/edit', checkAccessTokenAndVerifyAccount, checkFreeProduct, upload.array('images', 10), editFreeProduct);
 
-router.post('/create', checkAccessToken, checkFreeProduct, upload.array('images', 10), createFreeProduct);
-router.post('/signUpToReceive/:id', checkAccessToken, signUpToReceive);
+router.post('/create', checkAccessTokenAndVerifyAccount, checkFreeProduct, upload.array('images', 10), createFreeProduct);
+router.post('/signUpToReceive/:id', checkAccessTokenAndVerifyAccount, signUpToReceive);
 router.post('/status', getProductsByStatus);
-router.post('/confirmSharingProduct', confirmSharingProduct);
+router.post('/confirmSharingProduct', checkAccessTokenAndVerifyAccount,confirmSharingProduct);
 
 export default router 

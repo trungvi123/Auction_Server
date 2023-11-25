@@ -11,6 +11,8 @@ import roomRouter from './routes/roomRoute.js'
 import freeProductRouter from './routes/freeProductRoute.js'
 import paymentRouter from './routes/paymentRoute.js'
 import adminRouter from './routes/adminRoute.js'
+import newsRouter from './routes/newsRoute.js'
+
 import cookieParser from 'cookie-parser'
 import startWebsocket from "./io/index.js";
 import http from 'http'
@@ -50,9 +52,12 @@ app.use('/category', categoryRouter)
 app.use('/token', tokenRouter)
 app.use('/room', roomRouter)
 app.use('/payment', paymentRouter)
+app.use('/news', newsRouter)
+
 app.get('/', (req, res) => {
     res.send('Hello')
 })
+
 
 
 

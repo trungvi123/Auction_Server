@@ -10,6 +10,9 @@ const schema = mongoose.Schema({
         type: String,
         require: true
     },
+    avatar:{
+        type: String
+    },
     email: {
         type: String,
         require: true,
@@ -44,9 +47,9 @@ const schema = mongoose.Schema({
         type: String,
         require: true,
     },
-    reliability: {
-        type: String,
-    },
+    // reliability: {
+    //     type: String,
+    // },
     verifyAccount: {
         type: Boolean,
         default: false
@@ -180,6 +183,10 @@ const schema = mongoose.Schema({
         }
     ],
     warnLevel: {
+        type: Number,
+        default: 0
+    },
+    debt: {
         type: Number,
         default: 0
     },

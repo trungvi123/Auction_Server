@@ -14,12 +14,15 @@ import { io } from "../index.js";
 import { statisticModel } from "../model/statisticModel.js";
 import { payouts } from "./adminController.js";
 import { rateModel } from "../model/rateModel.js";
-
+import { profitModel } from "../model/profitModel.js";
+import { contactModel } from "../model/contactModel.js";
+import { deleteImg } from "./newsController.js";
+import exceljs from 'exceljs'
 
 const getUserById = async (req, res) => {
     try {
         const idUser = req.params.id
-        const user = await userModel.findById(idUser).select('_id followProductPreStart verifyAccount followProductPreEnd emailPaypal address birthday idCard firstName lastName email address phoneNumber')
+        const user = await userModel.findById(idUser).select('_id followProductPreStart avatar verifyAccount followProductPreEnd emailPaypal address birthday idCard firstName lastName email address phoneNumber')
         if (!user) {
             return res.status(400).json({ status: 'failure', errors: { msg: 'thất bại!' } })
         }
@@ -32,7 +35,7 @@ const getUserById = async (req, res) => {
 const getUserByEmail = async (req, res) => {
     try {
         const email = req.params.email
-        const user = await userModel.findOne({ email }).select('rate starRate createdAt follow followTo -_id').populate('rate')
+        const user = await userModel.findOne({ email }).select('rate avatar starRate createdAt follow followTo -_id').populate('rate')
         if (!user) {
             return res.status(400).json({ status: 'failure', errors: { msg: 'thất bại!' } })
         }
@@ -98,15 +101,16 @@ const signUp = async (req, res) => {
         const hashPassWord = bcrypt.hashSync(password, salt)
 
         const newUser = new userModel({
-            firstName: req.body.firstName ? req.body.firstName : '',
+            firstName: req.body.firstName || '',
             lastName,
             email,
-            emailPaypal: req.body.emailPaypal ? req.body.emailPaypal : '',
+            emailPaypal: req.body.emailPaypal || '',
             phoneNumber,
             hashPassWord,
-            birthday: req.body.birthday ? req.body.birthday : '',
+            birthday: req.body.birthday || '',
             idCard,
-            address
+            address,
+            avatar: `https://ui-avatars.com/api/name=${req.body.firstName || ''}%20${lastName}&background=random`
         })
 
         await newUser.save()
@@ -172,7 +176,8 @@ const signIn = async (req, res) => {
             lastName: user.lastName,
             emailPaypal: user.emailPaypal || '',
             productPermission: user.createdProduct,
-            freeProductPermission: user.createdFreeProduct
+            freeProductPermission: user.createdFreeProduct,
+            verifyAccount: user.verifyAccount
         }
 
         const accessToken = jwt.sign(payload, process.env.SECRET_KEY, { expiresIn: '1d' })
@@ -196,6 +201,12 @@ const updateProfile = async (req, res) => {
         const user = await userModel.findByIdAndUpdate(userId, {
             birthday, firstName, lastName, email, phoneNumber, idCard, address, emailPaypal
         }, { new: true })
+        if (req.file) {
+            await deleteImg(user.avatar, 'users')
+            user.avatar = `${process.env.BASE_URL}/users/${req.file.filename}`
+        }
+        await user.save()
+
         if (!user) {
             return res.status(400).json({ status: 'failure', msg: 'Cập nhật hồ sơ thất bại!' })
         }
@@ -335,9 +346,9 @@ const verifyAccount = async (req, res) => {
             user.lastOTP = { OTP: '' }
 
             await user.save()
-            return res.status(200).json({ status: 'success', message: "success" });
+            return res.status(200).json({ status: 'success', msg: "success" });
         } else {
-            return res.status(401).json({ message: 'Mã xác thực không hợp lệ hoặc đã hết hạn.' });
+            return res.status(400).json({ msg: 'Mã xác thực không hợp lệ hoặc đã hết hạn.' });
         }
     } catch (error) {
         return res.status(500).json({ status: 'failure' });
@@ -738,16 +749,12 @@ const handleFinishTransaction = async (req, res) => {
             return res.status(400).json({ status: 'failure' })
         }
 
-        const shop = await userModel.findById(update.owner)
-
-
         if (update.successfulTransaction === false) {
             update.successfulTransaction = true
             update.paid = true
             update.statusPayment = 'Đã thanh toán'
             update.statusPaymentSlug = 'da-thanh-toan'
             await update.save({ session })
-
             let price;
             if (update.purchasedBy) {
                 price = Number(update.price) / 24000;
@@ -755,9 +762,47 @@ const handleFinishTransaction = async (req, res) => {
                 price = Number(update.currentPrice) / 24000;
             }
 
-            price = price.toFixed(2).toString()
+            let payoutValue = 0
+            if (price <= 0.41) {
+                payoutValue = 0
+            } else if (price <= 4.16) {
+                payoutValue = 0.1
+            } else if (price <= 20.83) { // be hon 500k thi lay 5k
+                payoutValue = 0.2
+            } else if (price <= 41.6) {
+                payoutValue = 0.4
+            } else {
+                payoutValue = 1 // phi
+            }
+            price -= payoutValue
+            const shop = await userModel.findById(update.owner)
+            if (update.checkoutTypeSlug !== 'cod') {
+                price -= shop.debt
+                payoutValue += shop.debt
+                price = price.toFixed(2).toString()
+                await payouts(shop.emailPaypal, price, update._id, update.name) //emailPaypal cua nguoi nhan, value, productId,name
+                if (payoutValue > 0) {
+                    const newProfit = new profitModel({
+                        product: update._id,
+                        profit: payoutValue
+                    })
+                    await newProfit.save({ session })
+                }
+                shop.debt = 0
+                const notification2 = new notificationModel({
+                    content: `Chúng tôi vừa thanh toán cho bạn sản phẩm có tên "${update.name}", 
+                    vui lòng kiểm tra lại! Nếu có bất kỳ sai sót nào xin vui lòng liên hệ với chúng tôi!`,
+                    type: 'success',
+                    recipient: [update.owner],
+                    img: update.images[0] || ''
+                })
+                await notification2.save()
+                shop.notification.unshift(notification2._id)
+            } else {
+                shop.debt = Number(shop.debt + payoutValue)  // lưu tiền nợ
+            }
 
-            await payouts(shop.emailPaypal, price, update._id, update.name) //emailPaypal cua nguoi nhan, value, productId,name
+
 
             const notification = new notificationModel({
                 content: `Sản phẩm "${update.name}" đã được giao thành công!`,
@@ -765,18 +810,10 @@ const handleFinishTransaction = async (req, res) => {
                 recipient: [update.owner],
                 img: update.images[0] || ''
             })
-            const notification2 = new notificationModel({
-                content: `Chúng tôi vừa thanh toán cho bạn sản phẩm có tên "${update.name}", 
-                vui lòng kiểm tra lại! Nếu có bất kỳ sai sót nào xin vui lòng liên hệ với chúng tôi!`,
-                type: 'success',
-                recipient: [update.owner],
-                img: update.images[0] || ''
-            })
+
             await notification.save()
-            const receiver = await userModel.findById(update.owner)
-            receiver.notification.unshift(notification._id)
-            receiver.notification.unshift(notification2._id)
-            await receiver.save()
+            shop.notification.unshift(notification._id)
+            await shop.save()
 
 
             io.in(update.owner.toString()).emit('new_notification', 'new')
@@ -905,7 +942,7 @@ const createRate = async (req, res) => {
         });
 
         const rate = new rateModel({
-            from, to, comment, images, star: Number(star), product: id
+            from, to, comment, images, star: Number(star), product: id, productName: product.name
         })
 
         const newRate = await rate.save({ session })
@@ -1201,6 +1238,31 @@ const unFollowProduct = async (req, res) => {
     }
 }
 
+
+// --------------------- Contact-------------------
+
+const contact = async (req, res) => {
+    try {
+        const { name, content, phoneNumber } = req.body
+
+        const newContact = new contactModel({
+            name,
+            phoneNumber,
+            email: req.body.email || '',
+            address: req.body.address || '',
+            content
+        })
+        const ct = await newContact.save()
+        if (!ct) {
+            return res.status(400).json({ status: 'failure', msg: "Gửi liên hệ không thành công!" })
+        }
+        return res.status(201).json({ status: 'success', msg: "success" });
+
+    } catch (error) {
+        return res.status(500)
+    }
+}
+
 const handleMilestone_server = async (data) => {
     const product = await productModel.findById(data.productId)
     const client = await userModel.findById(data.clientId)
@@ -1235,8 +1297,16 @@ const handleMilestone_server = async (data) => {
 
 }
 
+
+
+// export
+
+
+
+
+
 export {
-    createRate, handleMilestone_server, replyComment, getUserByEmail, addFollow, unFollow, addFollowProduct, unFollowProduct,
+    createRate, contact, handleMilestone_server, replyComment, getUserByEmail, addFollow, unFollow, addFollowProduct, unFollowProduct,
     getParticipateReceiving, getRefuseFreeProducts, sendMailToUser, getNotifications, updateNotifications,
     getRefuseProducts, getBidsProducts, getReceivedProducts, getFreeProductsByOwner, deleteNotification,
     getProductsByOwner, deleteProductHistory, getPurchasedProducts, getWinProducts, updateProfile, createOTP, verifyAccount,

@@ -18,23 +18,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 
-const getPrepareToStart = async (req, res) => {
-    try {
-        const data = await productModel.find({ status: 'Đã được duyệt' }).sort({ startTime: 1 }).limit(9)
-        if (!data) {
-            return res.status(400).json({ status: 'failure' })
-        }
-        return res.status(200).json({ status: 'success', data })
-    } catch (error) {
-        return res.status(500)
-    }
-}
 
 const getProductById = async (req, res) => {
     try {
         const id = req.params.id
 
-        const data = await productModel.findById(id).populate('category owner')
+        const data = await productModel.findById(id).populate('category owner').lean()
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
@@ -48,7 +37,7 @@ const getProductById = async (req, res) => {
 const getCurrentPriceById = async (req, res) => {
     try {
         const id = req.params.id
-        const data = await productModel.findById(id).select('currentPrice')
+        const data = await productModel.findById(id).select('currentPrice').lean()
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
@@ -61,7 +50,7 @@ const getCurrentPriceById = async (req, res) => {
 const getProductsByStatus = async (req, res) => {
     try {
         const { status } = req.body
-        const data = await productModel.find({ status: status })
+        const data = await productModel.find({ status: status }).lean()
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
@@ -74,7 +63,7 @@ const getProductsByStatus = async (req, res) => {
 const getBidsById = async (req, res) => {
     try {
         const id = req.params.id
-        const data = await productModel.findById(id).select('bids')
+        const data = await productModel.findById(id).select('bids').lean()
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
@@ -87,7 +76,7 @@ const getBidsById = async (req, res) => {
 const getProducts = async (req, res) => {
     try {
         const page = req.params.page
-        const data = await productModel.find({ status: 'Đã được duyệt', page: page }).populate('category')
+        const data = await productModel.find({ status: 'Đã được duyệt', page: page }).populate('category').lean()
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
@@ -100,7 +89,7 @@ const getProducts = async (req, res) => {
 
 const getAllProducts = async (req, res) => {
     try {
-        const data = await productModel.find({ status: 'Đã được duyệt' }).populate('category')
+        const data = await productModel.find({ status: 'Đã được duyệt' }).populate('category').lean()
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
@@ -114,7 +103,7 @@ const getAllProducts = async (req, res) => {
 const getProductsByEmail = async (req, res) => {
     try {
         const email = req.params.email
-        const user = await userModel.findOne({ email: email })
+        const user = await userModel.findOne({ email: email }).lean()
         if (!user) {
             return res.status(400).json({ status: 'failure' })
         }
@@ -250,72 +239,75 @@ const editProduct = async (req, res) => {
         const { id, keepImgs, name, price, endTime, auctionTypeSlug, checkoutTypeSlug, basePrice, stepPrice, startTime, duration, owner, oldCategory, category, description } = req.body
         const product = await productModel.findById(id)
         // chỉ có người tạo mới có quyền sửa
-        if (product.owner.toString() === owner) {
-            const proOwner = await userModel.findById(owner).select('_id')
-            const proCategory = await categoryModel.findById(category).select('_id')
+        const dataFromToken = req.dataFromToken
+        if (dataFromToken._id !== product.owner.toString()) {
+            return res.status(400).json({ status: 'failure', msg: 'Bạn không có quyền thực hiện thao tác này!' });
+        }
+        const proOwner = await userModel.findById(owner).select('_id')
+        const proCategory = await categoryModel.findById(category).select('_id')
 
-            if (!proOwner) {
-                return res.status(400).json({ status: 'failure', errors: { msg: 'Không tìm thấy tài khoản người dùng!' } });
-            }
+        if (!proOwner) {
+            return res.status(400).json({ status: 'failure', errors: { msg: 'Không tìm thấy tài khoản người dùng!' } });
+        }
 
-            if (!proCategory) {
-                return res.status(400).json({ status: 'failure', errors: { msg: 'Danh mục không hợp lệ!' } });
-            }
-            if (keepImgs?.length > 0) {
-                await deleteImages(product, keepImgs)
+        if (!proCategory) {
+            return res.status(400).json({ status: 'failure', errors: { msg: 'Danh mục không hợp lệ!' } });
+        }
+        if (keepImgs?.length > 0) {
+            await deleteImages(product, keepImgs)
+        } else {
+            await deleteImages(product)
+        }
+        let images = req.files.map((file) => {
+            return `${process.env.BASE_URL}/uploads/${file.filename}`
+        });
+        if (keepImgs?.length > 0) {
+            if (Array.isArray(keepImgs)) {
+                images = [...keepImgs, ...images]
             } else {
-                await deleteImages(product)
+                images = [keepImgs, ...images]
             }
-            let images = req.files.map((file) => {
-                return `${process.env.BASE_URL}/uploads/${file.filename}`
-            });
-            if (keepImgs?.length > 0) {
-                if (Array.isArray(keepImgs)) {
-                    images = [...keepImgs, ...images]
-                } else {
-                    images = [keepImgs, ...images]
-                }
-            }
+        }
 
-            const newProduct = await productModel.findByIdAndUpdate(id, {
-                name,
-                basePrice,
-                price,
-                stepPrice,
-                auctionTypeSlug, checkoutTypeSlug,
-                startTime,
-                duration,
-                description,
-                endTime,
-                category: proCategory,
-                owner: proOwner,
-                images
-            }, { new: true }).session(session)
-            if (!newProduct) {
+        const newProduct = await productModel.findByIdAndUpdate(id, {
+            name,
+            basePrice,
+            price,
+            stepPrice,
+            auctionTypeSlug, checkoutTypeSlug,
+            startTime,
+            duration,
+            description,
+            endTime,
+            category: proCategory,
+            owner: proOwner,
+            images
+        }, { new: true }).session(session)
+        if (!newProduct) {
+            return res.status(400).json({ status: 'failure', errors: { msg: 'Cập nhật thất bại!' } });
+        }
+
+        // category thay đổi
+        if (oldCategory !== category) {
+            // xóa id sản phẩm ra khỏi cate cũ
+            const rs1 = await categoryModel.updateMany({ products: id }, { $pull: { products: id } }).session(session)
+            //thêm id vào cate mới
+            const rs2 = await categoryModel.findByIdAndUpdate(
+                proCategory,
+                { $push: { products: newProduct._id } },
+                { new: true }
+            ).session(session);
+
+            if (!rs1 || !rs2) {
+                await session.abortTransaction();
+                session.endSession();
                 return res.status(400).json({ status: 'failure', errors: { msg: 'Cập nhật thất bại!' } });
             }
-
-            // category thay đổi
-            if (oldCategory !== category) {
-                // xóa id sản phẩm ra khỏi cate cũ
-                const rs1 = await categoryModel.updateMany({ products: id }, { $pull: { products: id } }).session(session)
-                //thêm id vào cate mới
-                const rs2 = await categoryModel.findByIdAndUpdate(
-                    proCategory,
-                    { $push: { products: newProduct._id } },
-                    { new: true }
-                ).session(session);
-
-                if (!rs1 || !rs2) {
-                    await session.abortTransaction();
-                    session.endSession();
-                    return res.status(400).json({ status: 'failure', errors: { msg: 'Cập nhật thất bại!' } });
-                }
-            }
-            await session.commitTransaction();
-            session.endSession();
-            return res.status(200).json({ status: 'success', msg: 'Sửa sản phẩm thành công!' });
         }
+        await session.commitTransaction();
+        session.endSession();
+        return res.status(200).json({ status: 'success', msg: 'Sửa sản phẩm thành công!' });
+
 
     } catch (error) {
         await session.abortTransaction();
@@ -350,51 +342,49 @@ const deleteProduct = async (req, res) => {
         if (!owner) {
             return res.status(400).json({ status: 'failure', msg: 'Không tìm thấy người dùng!' })
         }
-        if (product.owner.toString() === idOwner) {
-            if (isFree) { // vat pham chia se
-                await freeProductModel.findByIdAndDelete(idProd).session(session)
-                const res2 = await userModel.updateMany({ $or: [{ createdFreeProduct: idProd }, { participateReceiving: idProd }, { receivedProduct: idProd }] },
-                    { $pull: { createdFreeProduct: idProd, participateReceiving: idProd, receivedProduct: idProd } }).session(session)
-                const res3 = await categoryModel.updateMany({ freeProducts: idProd }, { $pull: { freeProducts: idProd } }).session(session)
+        const dataFromToken = req.dataFromToken
+        if (dataFromToken._id !== product.owner.toString()) {
+            return res.status(400).json({ status: 'failure', msg: 'Bạn không có quyền thực hiện thao tác này!' });
+        }
+        if (isFree) { // vat pham chia se
+            await freeProductModel.findByIdAndDelete(idProd).session(session)
+            const res2 = await userModel.updateMany({ $or: [{ createdFreeProduct: idProd }, { participateReceiving: idProd }, { receivedProduct: idProd }] },
+                { $pull: { createdFreeProduct: idProd, participateReceiving: idProd, receivedProduct: idProd } }).session(session)
+            const res3 = await categoryModel.updateMany({ freeProducts: idProd }, { $pull: { freeProducts: idProd } }).session(session)
 
-                if (!res2 || !res3) {
-                    return res.status(400).json({ status: 'failure', errors: { msg: 'Xóa thất bại!' } });
-                }
-            } else {
-                await productModel.findByIdAndDelete(idProd).session(session)
-                await reportModel.findOneAndDelete({ productId: idProd }).session(session)
-
-                const res1 = await roomModel.findOneAndDelete({ product: idProd }).session(session)
-                const res2 = await userModel.updateMany(
-                    {
-                        $or: [
-                            { createdProduct: idProd }, { bids: idProd }, { room: res1._id }, { purchasedProduct: idProd }, { winProduct: idProd }
-                        ]
-
-                    },
-                    { $pull: { createdProduct: idProd, bids: idProd, room: res1._id, purchasedProduct: idProd, winProduct: idProd } }).session(session)
-
-                const res3 = await categoryModel.updateMany({ products: idProd }, { $pull: { products: idProd } }).session(session)
-
-
-                if (!res1 || !res2 || !res3) {
-                    return res.status(400).json({ status: 'failure', errors: { msg: 'Xóa thất bại!' } });
-                }
-            }
-            const del = await deleteImages(product)
-            if (!del) {
+            if (!res2 || !res3) {
                 return res.status(400).json({ status: 'failure', errors: { msg: 'Xóa thất bại!' } });
             }
-
-            await session.commitTransaction();
-            session.endSession();
-            return res.status(200).json({ status: 'success', _id: idProd, msg: 'Xóa sản phẩm thành công!' });
         } else {
+            await productModel.findByIdAndDelete(idProd).session(session)
+            await reportModel.findOneAndDelete({ productId: idProd }).session(session)
 
-            await session.abortTransaction();
-            session.endSession();
-            return res.status(400).json({ status: 'failure', msg: 'Không thể update!' })
+            const res1 = await roomModel.findOneAndDelete({ product: idProd }).session(session)
+            const res2 = await userModel.updateMany(
+                {
+                    $or: [
+                        { createdProduct: idProd }, { bids: idProd }, { room: res1._id }, { purchasedProduct: idProd }, { winProduct: idProd }
+                    ]
+
+                },
+                { $pull: { createdProduct: idProd, bids: idProd, room: res1._id, purchasedProduct: idProd, winProduct: idProd } }).session(session)
+
+            const res3 = await categoryModel.updateMany({ products: idProd }, { $pull: { products: idProd } }).session(session)
+
+
+            if (!res1 || !res2 || !res3) {
+                return res.status(400).json({ status: 'failure', errors: { msg: 'Xóa thất bại!' } });
+            }
         }
+        const del = await deleteImages(product)
+        if (!del) {
+            return res.status(400).json({ status: 'failure', errors: { msg: 'Xóa thất bại!' } });
+        }
+
+        await session.commitTransaction();
+        session.endSession();
+        return res.status(200).json({ status: 'success', _id: idProd, msg: 'Xóa sản phẩm thành công!' });
+
 
     } catch (err) {
         await session.abortTransaction();
@@ -459,7 +449,7 @@ const updateAuctionEnded = async (req, res) => {
     session.startTransaction();
     try {
         const id = req.params.id
-        const { type, idUser } = req.body
+        const { type,idUser } = req.body
         const data = await productModel.findById(id)
         if (!data) {
             return res.status(400).json({ status: 'failure' })
@@ -685,7 +675,7 @@ const notificationToFollower = async (followList, productInfor) => {
         type: 'infor',
         recipient: followList,
         img: productInfor.images[0] || '',
-        link: productInfor.isFree ? `/chi-tiet-dau-gia/${productInfor._id}` : `/chi-tiet-chia-se/${productInfor._id}`
+        link: productInfor.isFree ? `/chi-tiet-chia-se/${productInfor._id}` : `/chi-tiet-dau-gia/${productInfor._id}`
     })
     await notif.save()
     let index = 0
@@ -698,6 +688,7 @@ const notificationToFollower = async (followList, productInfor) => {
         } else {
             io.in(item.toString()).emit('new_notification', 'new')
         }
+
         index = 1
     }
 }
@@ -866,7 +857,57 @@ const updateBidForProduct_server = async (id, infor) => {
 }
 
 
+const handleUpdateProductRealTime_server = async (data) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        const product = await productModel.findById(data.productId)
+        if (data.type === 'startTime') {
+            if (!product.auctionStarted) {
+                product.auctionStarted = true
+                product.stateSlug = 'dang-dien-ra'
+                product.state = 'Đang diễn ra'
+                await product.save({ session })
+            }
+        } else {
+            if (!product.auctionEnded) {
+                product.auctionEnded = true
+                product.stateSlug = 'da-ket-thuc'
+                product.state = 'Đã kết thúc'
+                product.winner = product.bids.length ? product.bids[product.bids.length - 1].user : product.owner
+            
+                const result = await product.save({ session })
 
+                await userModel.findByIdAndUpdate(result.winner,
+                    {
+                        $addToSet: { winProduct: result._id },
+                    }
+                    , { new: true }
+                ).session(session)
+
+                const notification = new notificationModel({
+                    content: `Bạn đã đấu giá thành công sản phẩm "${result.name}"`,
+                    type: 'success',
+                    recipient: [result.winner],
+                    img: result.images[0] || ''
+                })
+                await notification.save({ session })
+                const receiver = await userModel.findById(result.winner)
+                receiver.notification.unshift(notification._id)
+                await receiver.save({ session })
+                io.in(result.winner.toString()).emit('new_notification', 'new')
+            }
+
+        }
+
+
+        await session.commitTransaction();
+        session.endSession();
+        return true
+    } catch (error) {
+        return false
+    }
+}
 
 export {
     getProductsByStatus, createProduct, getProductsByEmail,
@@ -874,5 +915,5 @@ export {
     updateBidForProduct_server, getCurrentPriceById_server,
     updateCurrentPriceById_server, getCurrentPriceById, getProductById,
     getProducts, deleteProduct, editProduct, approveProduct, getAllProducts,
-    refuseProduct, approveAgainProduct, deleteImages, search, updateShipping, getPrepareToStart
+    refuseProduct, approveAgainProduct, deleteImages, search, updateShipping, handleUpdateProductRealTime_server
 }
