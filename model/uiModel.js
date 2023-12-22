@@ -69,10 +69,6 @@ const schema = mongoose.Schema({
             }
         }
     ]
-
-
-
-
 },
     { timestamps: true })
 

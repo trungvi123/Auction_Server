@@ -13,6 +13,7 @@ import mongoose from "mongoose";
 import { statisticModel } from "../model/statisticModel.js";
 import { notificationModel } from "../model/notificationModel.js";
 import { io } from "../index.js";
+import { newsModel } from "../model/newsModel.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -23,9 +24,9 @@ const getProductById = async (req, res) => {
     try {
         const id = req.params.id
 
-        const data = await productModel.findById(id).populate('category owner').lean()
+        const data = await productModel.findOne({ _id: id, hide: false }).populate('category owner').lean()
         if (!data) {
-            return res.status(400).json({ status: 'failure' })
+            return res.status(400).json({ status: 'failure', msg: 'Sản phẩm không còn khả dụng!!' })
         }
         return res.status(200).json({ status: 'success', data })
     } catch (err) {
@@ -37,7 +38,7 @@ const getProductById = async (req, res) => {
 const getCurrentPriceById = async (req, res) => {
     try {
         const id = req.params.id
-        const data = await productModel.findById(id).select('currentPrice').lean()
+        const data = await productModel.findOne({ _id: id, hide: false }).select('currentPrice').lean()
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
@@ -48,6 +49,19 @@ const getCurrentPriceById = async (req, res) => {
 }
 
 const getProductsByStatus = async (req, res) => {
+    try {
+        const { status } = req.body
+        const data = await productModel.find({ status: status, hide: false }).lean()
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success', data })
+    } catch (err) {
+        return res.status(500)
+    }
+}
+
+const getProductsByStatusAD = async (req, res) => {
     try {
         const { status } = req.body
         const data = await productModel.find({ status: status }).lean()
@@ -63,7 +77,7 @@ const getProductsByStatus = async (req, res) => {
 const getBidsById = async (req, res) => {
     try {
         const id = req.params.id
-        const data = await productModel.findById(id).select('bids').lean()
+        const data = await productModel.findOne({ _id: id, hide: false }).select('bids').lean()
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
@@ -76,7 +90,7 @@ const getBidsById = async (req, res) => {
 const getProducts = async (req, res) => {
     try {
         const page = req.params.page
-        const data = await productModel.find({ status: 'Đã được duyệt', page: page }).populate('category').lean()
+        const data = await productModel.find({ status: 'Đã được duyệt', page: page, hide: false }).populate('category').lean()
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
@@ -87,9 +101,11 @@ const getProducts = async (req, res) => {
     }
 }
 
+
+
 const getAllProducts = async (req, res) => {
     try {
-        const data = await productModel.find({ status: 'Đã được duyệt' }).populate('category').lean()
+        const data = await productModel.find({ status: 'Đã được duyệt', hide: false }).populate('category').lean()
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
@@ -111,7 +127,35 @@ const getProductsByEmail = async (req, res) => {
         const data = await productModel.find({
             $and: [
                 { status: 'Đã được duyệt' },
-                { owner: user._id }
+                { owner: user._id },
+                { hide: false },
+
+            ]
+        }).populate('category')
+
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success', data })
+
+    } catch (error) {
+        return res.status(500)
+    }
+}
+
+
+const getHideProductsByOwner = async (req, res) => {
+    try {
+        const id = req.params.id
+        const dataFromToken = req.dataFromToken
+        if (dataFromToken._id.toString() !== id.toString()) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        const data = await productModel.find({
+            $and: [
+                { status: 'Đã được duyệt' },
+                { owner: id },
+                { hide: true },
             ]
         }).populate('category')
 
@@ -132,6 +176,7 @@ const search = async (req, res) => {
         const data = await productModel.find({
             $and: [
                 { status: 'Đã được duyệt' },
+                { hide: false },
                 {
                     $or: [
                         { name: { $regex: regex } },
@@ -142,11 +187,20 @@ const search = async (req, res) => {
                 }
             ]
         })
-        if (!data) {
-            return res.status(400).json({ status: 'failure' })
-        }
-        return res.status(200).json({ status: 'success', data })
-
+        const dataNews = await newsModel.find({
+            $and: [
+                { isApprove: 1 },
+                { hide: false },
+                {
+                    $or: [
+                        { title: { $regex: regex } },
+                        { description: { $regex: regex } },
+                        { lazyTitle: { $regex: regex } },
+                    ]
+                }
+            ]
+        }).populate('owner')
+        return res.status(200).json({ status: 'success', data: { data, dataNews } })
     } catch (error) {
         return res.status(500)
     }
@@ -159,7 +213,7 @@ const createProduct = async (req, res) => {
     try {
         const { name, price, endTime, auctionTypeSlug, checkoutTypeSlug, basePrice, stepPrice, startTime, duration, owner, category, description } = req.body
         // owner => object id
-        const proOwner = await userModel.findById(owner).select('_id ')
+        const proOwner = await userModel.findById(owner).select('_id debt')
         const proCategory = await categoryModel.findById(category).select('_id')
         const checkName = await productModel.countDocuments({ name: name })
         const productName = checkName > 0 ? `${name} CA-${checkName}` : name
@@ -169,11 +223,15 @@ const createProduct = async (req, res) => {
         });
 
         if (!proOwner) {
-            return res.status(400).json({ status: 'failure', errors: { msg: 'Không tìm thấy tài khoản người dùng!' } });
+            return res.status(400).json({ status: 'failure', msg: 'Không tìm thấy tài khoản người dùng!' });
+        }
+
+        if (proOwner.debt > 4 && checkoutTypeSlug === 'cod') {
+            return res.status(400).json({ status: 'failure', msg: 'Bạn chưa thành toán cho hệ thống, vui lòng chọn phương thức thanh toán khác!' });
         }
 
         if (!proCategory) {
-            return res.status(400).json({ status: 'failure', errors: { msg: 'Danh mục không hợp lệ!' } });
+            return res.status(400).json({ status: 'failure', msg: 'Danh mục không hợp lệ!' });
         }
         // const existingProductsCount = await productModel.find().count()
         // const page = Math.ceil((existingProductsCount + 1) / itemsPerPage);
@@ -343,7 +401,7 @@ const deleteProduct = async (req, res) => {
             return res.status(400).json({ status: 'failure', msg: 'Không tìm thấy người dùng!' })
         }
         const dataFromToken = req.dataFromToken
-        if (dataFromToken._id !== product.owner.toString()) {
+        if (dataFromToken.role !== 'admin' && dataFromToken._id !== product.owner.toString()) {
             return res.status(400).json({ status: 'failure', msg: 'Bạn không có quyền thực hiện thao tác này!' });
         }
         if (isFree) { // vat pham chia se
@@ -392,6 +450,31 @@ const deleteProduct = async (req, res) => {
         return res.status(500)
     }
 }
+
+const hideProduct = async (req, res) => {
+    try {
+        const { isFree, type } = req.body
+        const idProd = req.params.id
+        const dataFromToken = req.dataFromToken
+        let product = isFree ? await freeProductModel.findById(idProd) : await productModel.findById(idProd)
+
+        if (dataFromToken._id !== product.owner.toString()) {
+            return res.status(400).json({ status: 'failure', msg: 'Bạn không có quyền thực hiện thao tác này!' });
+        }
+
+        if (type === 'hide') {
+            product.hide = true
+        } else {
+            product.hide = false
+        }
+        await product.save()
+        return res.status(200).json({ status: 'success', msg: 'thành công!' });
+
+    } catch (error) {
+        return res.status(500).json({ status: 'failure', error })
+    }
+}
+
 
 const deleteImages = async (product, oldImgs = []) => {
     try {
@@ -449,7 +532,8 @@ const updateAuctionEnded = async (req, res) => {
     session.startTransaction();
     try {
         const id = req.params.id
-        const { type,idUser } = req.body
+        const { type } = req.body
+        const idUser = req.dataFromToken._id
         const data = await productModel.findById(id)
         if (!data) {
             return res.status(400).json({ status: 'failure' })
@@ -875,7 +959,7 @@ const handleUpdateProductRealTime_server = async (data) => {
                 product.stateSlug = 'da-ket-thuc'
                 product.state = 'Đã kết thúc'
                 product.winner = product.bids.length ? product.bids[product.bids.length - 1].user : product.owner
-            
+
                 const result = await product.save({ session })
 
                 await userModel.findByIdAndUpdate(result.winner,
@@ -910,8 +994,8 @@ const handleUpdateProductRealTime_server = async (data) => {
 }
 
 export {
-    getProductsByStatus, createProduct, getProductsByEmail,
-    updateAuctionEnded, updateAuctionStarted, getBidsById,
+    getProductsByStatus, createProduct, getProductsByEmail, hideProduct, getProductsByStatusAD,
+    updateAuctionEnded, updateAuctionStarted, getBidsById, getHideProductsByOwner,
     updateBidForProduct_server, getCurrentPriceById_server,
     updateCurrentPriceById_server, getCurrentPriceById, getProductById,
     getProducts, deleteProduct, editProduct, approveProduct, getAllProducts,

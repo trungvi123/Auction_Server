@@ -5,7 +5,10 @@ const schema = mongoose.Schema({
     title: {
         type: String,
         require: true
-
+    },
+    lazyTitle: {
+        type: String,
+        require: true
     },
     description: {
         type: String,
@@ -18,8 +21,8 @@ const schema = mongoose.Schema({
 
     },
     owner: {
-            type: mongoose.Types.ObjectId,
-            ref: 'auction_user'
+        type: mongoose.Types.ObjectId,
+        ref: 'auction_user'
     },
     img: {
         type: String

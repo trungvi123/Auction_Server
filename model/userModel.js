@@ -35,9 +35,7 @@ const schema = mongoose.Schema({
         type: String,
     },
     idCard: {
-        type: String,
-        require: true,
-        unique: true
+        type: String
     },
     role: {
         type: String,

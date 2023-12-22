@@ -1,5 +1,5 @@
 import express from "express";
-import { createFreeProduct,getFreeProducts, getProductById, getFreeProductsByEmail, signUpToReceive, getAllFreeProducts, confirmSharingProduct, getParticipationList, getProductsByStatus, editFreeProduct } from '../controllers/freeProductController.js'
+import { createFreeProduct,getFreeProducts, getProductById, getFreeProductsByEmail, signUpToReceive, getAllFreeProducts, confirmSharingProduct, getParticipationList, getProductsByStatus, editFreeProduct, getHideProductsByOwner } from '../controllers/freeProductController.js'
 import { checkAccessToken,checkAccessTokenAndVerifyAccount } from "../middleware/authToken.js";
 import { checkFreeProduct } from "../middleware/checkRequest.js";
 import upload from "../utils/uploadImg.js";
@@ -9,6 +9,8 @@ router.get('/getParticipationList/:id', checkAccessToken, getParticipationList);
 router.get('/getFreeProductsByEmail/:email', getFreeProductsByEmail);
 router.get('/all/:limit?', getAllFreeProducts);
 router.get('/getFreeProducts/:limit?', getFreeProducts);
+router.get('/getHideProductsByOwner/:id',checkAccessToken, getHideProductsByOwner);
+
 
 router.get('/:id', getProductById);
 

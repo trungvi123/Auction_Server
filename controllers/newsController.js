@@ -1,15 +1,20 @@
 import { newsModel } from "../model/newsModel.js"
+import { userModel } from "../model/userModel.js";
+
 import path, { dirname } from 'path'
 import fs from 'fs/promises'
 import { fileURLToPath } from 'url';
 import { statisticModel } from "../model/statisticModel.js";
+import normalizeWord from "../utils/normalizeWord.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const getNewsById = async (req, res) => {
     try {
         const id = req.params.id
-        const data = await newsModel.findOne({ _id: id, hide: false }).populate('owner').lean()
+        const data = await newsModel.findOne({
+            _id: id, hide: false
+        }).populate('owner').lean()
 
         if (!data) {
             return res.status(400).json({ status: 'failure', msg: 'Not found' })
@@ -20,12 +25,33 @@ const getNewsById = async (req, res) => {
         return res.status(500).json({ status: 'failure' })
     }
 }
+const getNewsByEmail = async (req, res) => {
+    try {
+        const email = req.params.email
+
+        const user = await userModel.findOne({ email }).lean()
+        if (!user) {
+            return res.status(400).json({ status: 'failure', msg: 'User Not found' })
+        }
+        const data = await newsModel.find({
+            owner: user._id, hide: false, isApprove: 1
+        }).populate('owner').lean()
+
+        return res.status(200).json({ status: 'success', data })
+    } catch (error) {
+        return res.status(500).json({ status: 'failure' })
+    }
+}
+
 
 const getNews = async (req, res) => {
     try {
-        const data = await newsModel.find({ hide: false }).populate('owner').lean()
+        const data = await newsModel.find({ hide: false, isApprove: 1 }).populate('owner').lean()
+        setTimeout(() => {
+            return res.status(200).json({ status: 'success', data })
+        }, 1500)
 
-        return res.status(200).json({ status: 'success', data })
+
     } catch (error) {
         return res.status(500).json({ status: 'failure' })
     }
@@ -109,6 +135,7 @@ const createNews = async (req, res) => {
 
         const news = new newsModel({
             title,
+            lazyTitle: normalizeWord(title),
             description,
             content,
             owner: dataFromToken._id,
@@ -138,14 +165,14 @@ const editNews = async (req, res) => {
         if (!news) {
             return res.status(400).json({ status: 'failure', msg: 'Not found!' })
         }
-        if (dataFromToken._id !== news.owner) {
-            return res.status(400).json({ status: 'success', msg: 'Có lỗi xãy ra!' })
+        if (dataFromToken._id !== news.owner.toString()) {
+            return res.status(400).json({ status: 'failure', msg: 'Có lỗi xãy ra!' })
         }
         news.title = title
         news.content = content
         news.description = description
         if (req.file) {
-            await deleteImg(news.img,'news')
+            await deleteImg(news.img, 'news')
             news.img = `${process.env.BASE_URL}/news/${req.file.filename}`
         }
         const data = await news.save()
@@ -168,8 +195,8 @@ const hideNews = async (req, res) => {
         if (!news) {
             return res.status(400).json({ status: 'failure', msg: 'Not found!' })
         }
-        if (dataFromToken._id !== news.owner) {
-            return res.status(400).json({ status: 'success', msg: 'Có lỗi xãy ra!' })
+        if (dataFromToken._id !== news.owner.toString()) {
+            return res.status(400).json({ status: 'failure', msg: 'Có lỗi xãy ra!' })
         }
 
         news.hide = true
@@ -231,12 +258,18 @@ const handleApproveNews = async (req, res) => {
 
 const deleteNews = async (req, res) => {
     try {
-        const { id } = req.body
-        const news = await newsModel.findByIdAndDelete(id)
-        if (!news) {
+        const { id } = req.params
+        const dataFromToken = req.dataFromToken
+        const newsCheck = await newsModel.findById(id)
+        if (!newsCheck) {
             return res.status(400).json({ status: 'failure', msg: 'Not found!' })
         }
-        return res.status(200).json({ status: 'success' })
+
+        if (dataFromToken.role === 'admin' || dataFromToken._id.toString() === newsCheck.owner.toString()) {
+            await newsModel.findByIdAndDelete(id)
+            return res.status(200).json({ status: 'success' })
+        }
+        return res.status(400).json({ status: 'failure', msg: 'Not Permission!' })
 
     } catch (error) {
         return res.status(500).json({ status: 'failure' })
@@ -253,8 +286,8 @@ const reApprove = async (req, res) => {
         if (!news) {
             return res.status(400).json({ status: 'failure', msg: 'Not found!' })
         }
-        if (dataFromToken._id !== news.owner) {
-            return res.status(400).json({ status: 'success', msg: 'Có lỗi xãy ra!' })
+        if (dataFromToken._id !== news.owner.toString()) {
+            return res.status(400).json({ status: 'failure', msg: 'Có lỗi xãy ra!' })
         }
 
         news.reApprove = true
@@ -275,8 +308,8 @@ const showNews = async (req, res) => {
         if (!news) {
             return res.status(400).json({ status: 'failure', msg: 'Not found!' })
         }
-        if (dataFromToken._id !== news.owner) {
-            return res.status(400).json({ status: 'success', msg: 'Có lỗi xãy ra!' })
+        if (dataFromToken._id !== news.owner.toString()) {
+            return res.status(400).json({ status: 'failure', msg: 'Có lỗi xãy ra!' })
         }
 
         news.hide = false
@@ -288,7 +321,7 @@ const showNews = async (req, res) => {
     }
 }
 
-const deleteImg = async (img,type) => {
+const deleteImg = async (img, type) => {
     try {
         // tim va xoa cac anh cu
         const folderPath = path.join(__dirname, '../public', type); // Đường dẫn đến thư mục chứa tệp ảnh
@@ -304,4 +337,4 @@ const deleteImg = async (img,type) => {
     }
 }
 
-export { createNews, hideNews,deleteImg, getReApproveNews, getNewsByStatus_admin, handleApproveNews, deleteNews, getHideNews, reApprove, showNews, editNews, getNews, getNewsById, getMyNews, getRefuseNews }
+export { createNews, hideNews, deleteImg, getNewsByEmail, getReApproveNews, getNewsByStatus_admin, handleApproveNews, deleteNews, getHideNews, reApprove, showNews, editNews, getNews, getNewsById, getMyNews, getRefuseNews }

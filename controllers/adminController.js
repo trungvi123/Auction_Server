@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { contactModel } from "../model/contactModel.js";
 import configMail from "../utils/configMail.js";
 import exceljs from 'exceljs'
+import { profitModel } from "../model/profitModel.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -24,7 +25,6 @@ const createStatistic = async (req, res) => {
             year
         })
         const data = await temp.save()
-
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
@@ -249,12 +249,97 @@ const getTemplateActive = async (req, res) => {
 const getAllStatistic = async (req, res) => {
     try {
         const statistic = await statisticModel.find()
+
         if (!statistic) {
             return res.status(400).json({ status: 'failure' })
         }
         return res.status(200).json({ status: 'success', data: statistic })
     } catch (error) {
         return res.status(500)
+    }
+}
+
+const postDataMonth = async (req, res) => {
+    try {
+        const id = req.params.id
+        const statistic = await statisticModel.findById(id)
+        statistic.months = [
+            {
+                month: '1',
+                userCountInMonth: 3,
+                newsCountInMonth: 2,
+                auctionCountInMonth: 4,
+                freeProductCountInMonth: 3
+            },
+            {
+                month: '2',
+                userCountInMonth: 4,
+                newsCountInMonth: 6,
+                auctionCountInMonth: 6,
+                freeProductCountInMonth: 3
+            },
+            {
+                month: '3',
+                userCountInMonth: 4,
+                newsCountInMonth: 6,
+                auctionCountInMonth: 6,
+                freeProductCountInMonth: 2
+            }, {
+                month: '4',
+                userCountInMonth: 5,
+                newsCountInMonth: 7,
+                auctionCountInMonth: 12,
+                freeProductCountInMonth: 4
+            }, {
+                month: '5',
+                userCountInMonth: 2,
+                newsCountInMonth: 1,
+                auctionCountInMonth: 7,
+                freeProductCountInMonth: 6
+            }, {
+                month: '6',
+                userCountInMonth: 8,
+                newsCountInMonth: 9,
+                auctionCountInMonth: 6,
+                freeProductCountInMonth: 5
+            }, {
+                month: '7',
+                userCountInMonth: 8,
+                newsCountInMonth: 9,
+                auctionCountInMonth: 6,
+                freeProductCountInMonth: 7
+            }, {
+                month: '8',
+                userCountInMonth: 7,
+                newsCountInMonth: 6,
+                auctionCountInMonth: 7,
+                freeProductCountInMonth: 6
+            }, {
+                month: '9',
+                userCountInMonth: 3,
+                newsCountInMonth: 3,
+                auctionCountInMonth: 4,
+                freeProductCountInMonth: 2
+            }, {
+                month: '10',
+                userCountInMonth: 2,
+                newsCountInMonth: 2,
+                auctionCountInMonth: 3,
+                freeProductCountInMonth: 1
+            }, {
+                month: '11',
+                userCountInMonth: 6,
+                newsCountInMonth: 7,
+                auctionCountInMonth: 4,
+                freeProductCountInMonth: 2
+            },
+
+        ]
+        await statistic.save()
+        return res.status(200).json({ status: 'success', data: statistic })
+
+    } catch (error) {
+
     }
 }
 
@@ -461,6 +546,127 @@ const handleExport = async (req, res) => {
     }
 };
 
+const handleExportProfit = async (req, res) => {
+    try {
+        const { year } = req.params
+
+        const result = await profitModel.aggregate([
+            {
+                $match: {
+                    createdAt: {
+                        $gte: new Date(`${year}-01-01`),
+                        $lt: new Date(`${year + 1}-01-01`)
+                    }
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        month: { $month: "$createdAt" },
+                        year: { $year: "$createdAt" }
+                    },
+                    totalProfit: { $sum: "$profit" }
+                }
+            },
+            {
+                $sort: {
+                    "_id.year": 1,
+                    "_id.month": 1
+                }
+            }
+        ]);
+        let profitTmp = {};
+        let worksheetColumns = []
+        for (let i = 1; i <= 12; i++) {
+            const check = result?.find(
+                (item) => item._id.month.toString() === i.toString()
+            );
+            profitTmp[`thang${i}`] = check ? check.totalProfit : 0
+        }
+        let i = 1
+        for (const keydata in profitTmp) {
+            worksheetColumns.push({
+                header: `Tháng ${i}`, key: keydata, width: 15
+            })
+            i++
+        }
+        // console.log(worksheetColumns);
+        const workbook = new exceljs.Workbook();
+        const worksheet = workbook.addWorksheet('Thống kê');
+
+        worksheet.columns = worksheetColumns
+        worksheet.addRow(profitTmp)
+
+        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        res.setHeader("Content-Disposition", "attachment; filename=" + `profit.xlsx`);
+        workbook.xlsx.write(res).then(() => res.end());
+    } catch (error) {
+        return res.status(500)
+
+    }
+};
+
+const getProfitByYear = async (req, res) => {
+    const year = req.params.year; // Năm được truyền vào từ request
+
+    try {
+        // Tạo một đối tượng Date để sử dụng trong truy vấn
+        const startDate = new Date(`${year}-01-01T00:00:00.000Z`);
+        const endDate = new Date(`${year}-12-31T23:59:59.999Z`);
+
+        // Truy vấn MongoDB để lấy lợi nhuận trong khoảng thời gian từ startDate đến endDate
+        const profits = await profitModel.find({
+            createdAt: { $gte: startDate, $lte: endDate }
+        });
+
+        // Tạo một đối tượng để lưu trữ lợi nhuận theo tháng và ngày
+        const monthlyProfits = {};
+
+        // Tạo một đối tượng để lưu trữ tổng lợi nhuận của từng tháng
+        const totalProfits = {};
+
+        // Lặp qua tất cả các tháng trong năm
+        for (let month = 1; month <= 12; month++) {
+            // Tìm số ngày thực tế trong tháng
+            const daysInMonth = new Date(year, month, 0).getDate();
+
+            // Tạo một đối tượng để lưu trữ lợi nhuận theo ngày trong tháng
+            const dailyProfits = {};
+
+            // Tổng lợi nhuận của tháng
+            let monthlyTotalProfit = 0;
+
+            // Lặp qua tất cả các ngày trong tháng
+            for (let day = 1; day <= daysInMonth; day++) {
+                dailyProfits[day] = 0; // Mặc định giá trị là 0
+
+                // Tìm lợi nhuận cho ngày cụ thể trong tháng
+                profits.forEach((profit) => {
+                    const profitMonth = profit.createdAt.getMonth() + 1;
+                    const profitDay = profit.createdAt.getDate();
+
+                    if (profitMonth === month && profitDay === day) {
+                        dailyProfits[day] += profit.profit;
+                        monthlyTotalProfit += profit.profit;
+                    }
+                });
+            }
+
+            monthlyProfits[month] = {
+                dailyProfits,
+                monthlyTotalProfit,
+            };
+
+            totalProfits[month] = monthlyTotalProfit;
+        }
 
 
-export { createStatistic, handleExport, getNewContact, replyContact, getContactReply, getTemplateActive, activeTemplate, deleteTemplate, updateImgTemplate, updateTemplate, deleteStatistic, deleteImageTemplate, getAllStatistic, getStatisticByYear, payouts, createTemplate, getTemplates }
+        // Trả về kết quả
+        return res.status(200).json({ year, monthlyProfits });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Internal Server Error' });
+    }
+};
+
+export { createStatistic, handleExportProfit, getProfitByYear, postDataMonth, handleExport, getNewContact, replyContact, getContactReply, getTemplateActive, activeTemplate, deleteTemplate, updateImgTemplate, updateTemplate, deleteStatistic, deleteImageTemplate, getAllStatistic, getStatisticByYear, payouts, createTemplate, getTemplates }

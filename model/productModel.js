@@ -178,6 +178,10 @@ const schema = mongoose.Schema({
     payout_batch_id: { // view detail payout
         type: String,
         default: ''
+    },
+    hide : {
+        type: Boolean,
+        default: false 
     }
 
 }, { timestamps: true })

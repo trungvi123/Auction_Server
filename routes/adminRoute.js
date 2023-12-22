@@ -1,6 +1,6 @@
 import express from "express";
 import {
-  approveProduct, refuseProduct, approveAgainProduct,
+  approveProduct, refuseProduct, approveAgainProduct, getProductsByStatusAD,
 } from "../controllers/productController.js";
 import {
   getReports, sendMailToUser, deleteReport, getAllUser, approveReport, updateBlockUserById, deleteUserById
@@ -8,7 +8,7 @@ import {
 import { checkAdminAccessToken } from "../middleware/authToken.js";
 import { createStatistic, deleteStatistic, deleteTemplate, getAllStatistic, updateTemplate,
    activeTemplate, updateImgTemplate, getStatisticByYear, payouts, createTemplate,
-    getTemplates, getNewContact, getContactReply, replyContact, handleExport } from '../controllers/adminController.js'
+    getTemplates, getNewContact, getContactReply, replyContact, handleExport,handleExportProfit, getProfitByYear } from '../controllers/adminController.js'
 import { AdminUpload } from "../utils/uploadImg.js";
 import { deleteNews, getNewsByStatus_admin, getReApproveNews, handleApproveNews } from "../controllers/newsController.js";
 
@@ -33,8 +33,12 @@ router.get('/getNewsByStatus_admin/:type', checkAdminAccessToken, getNewsByStatu
 
 //export
 router.get('/handleExport/:year/:type', handleExport);
+router.get('/handleExportProfit/:year', handleExportProfit);
+
+router.get('/getProfitByYear/:year',checkAdminAccessToken, getProfitByYear);
 
 
+// router.get('/postDataMonth/:id', postDataMonth)
 router.post('/createStatistic', checkAdminAccessToken, createStatistic)
 router.post('/payouts', checkAdminAccessToken, payouts)
 router.post('/updateBlockUserById/:id', checkAdminAccessToken, updateBlockUserById);
@@ -44,6 +48,8 @@ router.post('/updateTemplate', checkAdminAccessToken, updateTemplate)
 router.post('/updateImgTemplate', checkAdminAccessToken, AdminUpload.single('image'), updateImgTemplate)
 router.post('/replyContact/:id', checkAdminAccessToken, replyContact)
 router.post('/handleApproveNews', checkAdminAccessToken, handleApproveNews)
+router.post('/statusAd',checkAdminAccessToken, getProductsByStatusAD);
+
 //export
 
 
@@ -54,8 +60,8 @@ router.patch('/activeTemplate/:id', checkAdminAccessToken, activeTemplate);
 router.delete('/deleteTemplate/:id', checkAdminAccessToken, deleteTemplate);
 router.delete('/deleteReport/:id', checkAdminAccessToken, deleteReport);
 router.delete('/deleteStatistic/:year', checkAdminAccessToken, deleteStatistic);
-router.delete('/deleteUser:id', checkAdminAccessToken, deleteUserById);
-router.delete('/deleteNews:id', checkAdminAccessToken, deleteNews);
+router.delete('/deleteUser/:id', checkAdminAccessToken, deleteUserById);
+router.delete('/deleteNews/:id', checkAdminAccessToken, deleteNews);
 
 
 

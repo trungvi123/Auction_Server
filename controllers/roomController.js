@@ -36,7 +36,8 @@ const joinRoom = async (req, res) => {
     const session = await mongoose.startSession();
     session.startTransaction();
     try {
-        const { idProd, idUser, idRoom } = req.body
+        const { idProd, idRoom } = req.body
+        const idUser = req.dataFromToken._id
         const idp = await productModel.findById(idProd).select('_id')
         if (!idp) {
             return res.status(400).json({ status: 'failure', msg: 'Không tìm thấy sản phẩm' });
@@ -58,7 +59,6 @@ const joinRoom = async (req, res) => {
             },
             { new: true }
         ).session(session)
-
         await userModel.findByIdAndUpdate(
             idUser,
             {

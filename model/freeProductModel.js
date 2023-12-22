@@ -75,6 +75,10 @@ const schema = mongoose.Schema({
     state: {
         type: String,
         default: 'Sắp diễn ra'
+    },
+    hide: {
+        type: Boolean,
+        default: false
     }
 
 }, { timestamps: true })

@@ -2,14 +2,15 @@ import mongoose from "mongoose";
 
 
 const schema = mongoose.Schema({
-    product:{
+    product: {
         type: mongoose.Types.ObjectId,
-        ref:'auction_product'
+        ref: 'auction_product',
+        require: true
     },
-    profit:{
+    profit: {
         type: Number,
+        require: true
     }
-  },
-  { timestamps: true })
+}, { timestamps: true })
 
-export const profitModel = mongoose.model('auction_profit',schema)
+export const profitModel = mongoose.model('auction_profit', schema)

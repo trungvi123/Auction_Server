@@ -11,7 +11,7 @@ const schema = mongoose.Schema({
         {
             month: {
                 type: String,
-                require: true
+                default: ''
             },
             userCountInMonth: {
                 type: Number,

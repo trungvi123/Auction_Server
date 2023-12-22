@@ -17,7 +17,6 @@ import { rateModel } from "../model/rateModel.js";
 import { profitModel } from "../model/profitModel.js";
 import { contactModel } from "../model/contactModel.js";
 import { deleteImg } from "./newsController.js";
-import exceljs from 'exceljs'
 
 const getUserById = async (req, res) => {
     try {
@@ -90,7 +89,7 @@ const signUp = async (req, res) => {
             return res.status(422).json({ errors: errors.array() });
         }
 
-        const { email, address, idCard, password, lastName, phoneNumber } = req.body
+        const { email, address, password, lastName, phoneNumber } = req.body
 
         const already = await userModel.findOne({ email })
         if (already) {
@@ -104,14 +103,15 @@ const signUp = async (req, res) => {
             firstName: req.body.firstName || '',
             lastName,
             email,
-            emailPaypal: req.body.emailPaypal || '',
             phoneNumber,
             hashPassWord,
             birthday: req.body.birthday || '',
-            idCard,
             address,
             avatar: `https://ui-avatars.com/api/name=${req.body.firstName || ''}%20${lastName}&background=random`
         })
+
+        if (req.body.idCard) newUser.idCard = req.body.idCard
+        if (req.body.emailPaypal) newUser.emailPaypal = req.body.emailPaypal
 
         await newUser.save()
 
@@ -198,77 +198,150 @@ const signIn = async (req, res) => {
 const updateProfile = async (req, res) => {
     try {
         const { userId, birthday, firstName, lastName, email, phoneNumber, idCard, address, emailPaypal } = req.body
+        const check = await userModel.findOne({
+            $or: [{
+                email
+            }, { emailPaypal }, { idCard },{phoneNumber}]
+        })
+        if (check && check._id.toString() !== userId.toString()) {
+            return res.status(400).json({ status: 'failure', msg: 'Vui lòng xem lại email, CCCD hoặc emailPaypal!' })
+        }
+
         const user = await userModel.findByIdAndUpdate(userId, {
-            birthday, firstName, lastName, email, phoneNumber, idCard, address, emailPaypal
+            birthday, firstName, lastName, email, phoneNumber, address,idCard,emailPaypal
         }, { new: true })
         if (req.file) {
             await deleteImg(user.avatar, 'users')
             user.avatar = `${process.env.BASE_URL}/users/${req.file.filename}`
         }
-        await user.save()
+     
+        const result = await user.save()
 
         if (!user) {
             return res.status(400).json({ status: 'failure', msg: 'Cập nhật hồ sơ thất bại!' })
         }
-        return res.status(200).json({ status: 'success' })
+
+        const payload = {
+            _id: result._id,
+            email,
+            role: result.role || 'user',
+            lastName: result.lastName,
+            emailPaypal: result.emailPaypal || '',
+            productPermission: result.createdProduct,
+            freeProductPermission: result.createdFreeProduct,
+            verifyAccount: result.verifyAccount
+        }
+
+        const accessToken = jwt.sign(payload, process.env.SECRET_KEY, { expiresIn: '1d' })
+        const refreshToken = jwt.sign(payload, process.env.SECRET_REFRESH_KEY, { expiresIn: '7d' })
+
+        res.cookie('refreshToken', refreshToken, {
+            httpOnly: true,
+            sameSite: 'none', // or 'lax' if applicable
+            secure: true, // Set to true in production for secure cookies
+        });
+
+        return res.status(200).json({ status: 'success', accessToken });
     } catch (error) {
-        return res.status(500).json({ status: 'failure' });
+        return res.status(500).json({ status: 'failure', error });
     }
 }
 
 const deleteUserById = async (req, res) => {
     const idUser = req.params.id
-
     const user = await userModel.findByIdAndDelete(idUser)
-
     if (user) {
         return res.status(200).json({ status: 'success' })
-    } else {
-        return res.status(400).json({ status: 'failure' })
     }
+    return res.status(400).json({ status: 'failure' })
 
 };
 
+
+
+
 const resetPass = async (req, res) => {
+    try {
+        const { OTP, email } = req.body
+        const user = await userModel.findOne({ email })
+        if (!user) {
+            return res.status(400).json({ status: 'failure', msg: 'Tài khoản không tồn tại!' });
+        }
+
+        const currentTime = new Date();
+        const timeDiff = (currentTime - user.lastOTP.createdAt) / 1000;
+        if (OTP && user.lastOTP.OTP === OTP && timeDiff <= 60) {
+            // tao pass mới
+            const newpass = 'pass' + Math.floor(Math.random() * 100000)
+            // ma hóa pass
+            const salt = bcrypt.genSaltSync(12)
+            const hashPassWord = bcrypt.hashSync(newpass, salt)
+            //cap nhat csdl
+            user.hashPassWord = hashPassWord
+            user.lastOTP = { OTP: '' }
+
+            await user.save()
+            const subject = 'Mật khẩu mới'
+            const text = 'Xin chào,'
+            const html = `
+                    <p>Chúc mừng bạn đã khôi phục mật khẩu thành công</p>
+                    <p>Đây là mật khẩu tạm thời của bạn: ${newpass}</p>
+                    <p>Vui lòng thay đổi mật khẩu của bạn!</p>
+                    `
+            const { transporter, mailOption } = configMail(email, subject, text, html)
+            transporter.sendMail(mailOption, (err) => {
+                if (err) {
+                    console.log(err);
+                    res.status(500).json({ status: 'failure', msg: "Gửi mail thất bại!" });
+
+                } else {
+                    res.status(200).json({ status: 'success', msg: "success" });
+                }
+            });
+
+
+            return res.status(200).json({ status: 'success', msg: "success" });
+        } else {
+            return res.status(400).json({ status: 'failure', msg: 'Mã OTP không hợp lệ hoặc đã hết hạn.' });
+        }
+    } catch (error) {
+        res.status(500).json({ status: 'failure' });
+    }
+
+}
+
+const confirmResetPass = async (req, res) => {
     try {
         const { email } = req.body
         const user = await userModel.findOne({ email })
         if (!user) {
             return res.status(400).json({ status: 'failure', errors: { msg: 'Tài khoản không tồn tại!' } });
         }
-        // tao pass mới
-        const newpass = 'pass' + Math.floor(Math.random() * 100000)
-        // ma hóa pass
-        const salt = bcrypt.genSaltSync(12)
-        const hashPassWord = bcrypt.hashSync(newpass, salt)
-        //cap nhat csdl
-        await userModel.findOneAndUpdate({ email }, {
-            hashPassWord
-        },
-            { new: true })
+
+        const OTP = Math.floor(100000 + Math.random() * 900000).toString();
+        // Lưu thông tin xác thực vào cơ sở dữ liệu
+        user.lastOTP = { OTP }
+
         // gửi mail cho user
-        const subject = 'Mật khẩu mới'
+        const subject = 'Cit Auction - OTP'
         const text = 'Xin chào,'
         const html = `
-        <p>Chúc mừng bạn đã khôi phục mật khẩu thành công</p>
-        <p>Đây là mật khẩu tạm thời của bạn: ${newpass}</p>
-        <p>Vui lòng thay đổi mật khẩu của bạn!</p>
+        <p>Đây là mã OTP của bạn ${OTP}</p>
+        <p>Mã này sẽ có hiệu lực trong 60 giây!</p>
         `
         const { transporter, mailOption } = configMail(email, subject, text, html)
         transporter.sendMail(mailOption, (err) => {
             if (err) {
                 console.log(err);
-                res.status(500).json({ status: 'failure', message: "Gửi mail thất bại!" });
-
+                res.status(500).json({ status: 'failure', msg: "Gửi mail thất bại!" });
             } else {
-                res.status(200).json({ status: 'success', message: "success" });
+                res.status(200).json({ status: 'success', msg: "success" });
             }
         });
-
+        await user.save()
     } catch (error) {
         res.status(500).json({ status: 'failure' });
     }
-
 }
 
 const changePass = async (req, res) => {
@@ -338,7 +411,10 @@ const verifyAccount = async (req, res) => {
     try {
         const dataFromToken = req.dataFromToken
         const { OTP } = req.body;
-        const user = await userModel.findById(dataFromToken)
+        const user = await userModel.findById(dataFromToken._id)
+        if (!user) {
+            return res.status(400).json({ status: 'failure', errors: { msg: 'Tài khoản không tồn tại!' } });
+        }
         const currentTime = new Date();
         const timeDiff = (currentTime - user.lastOTP.createdAt) / 1000;
         if (OTP && user.lastOTP.OTP === OTP && timeDiff <= 60) {
@@ -381,12 +457,12 @@ const getProductsByOwner = async (req, res) => {
     try {
         const id = req.params.id
 
-        const data = await userModel.findById(id).populate('createdProduct').select('name image status')
-
+        const result = await userModel.findById(id).populate('createdProduct').select('name image status')
+        const data = result.createdProduct.filter((item) => item.hide === false)
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
-        return res.status(200).json({ status: 'success', data: data.createdProduct })
+        return res.status(200).json({ status: 'success', data })
     } catch (err) {
         return res.status(500)
     }
@@ -397,12 +473,12 @@ const getFreeProductsByOwner = async (req, res) => {
     try {
         const id = req.params.id
 
-        const data = await userModel.findById(id).populate('createdFreeProduct').select('name image status')
-
+        const result = await userModel.findById(id).populate('createdFreeProduct').select('name image status')
+        const data = result.createdFreeProduct.filter((item) => item.hide === false)
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
-        return res.status(200).json({ status: 'success', data: data.createdFreeProduct })
+        return res.status(200).json({ status: 'success', data })
     } catch (err) {
         return res.status(500)
     }
@@ -412,12 +488,13 @@ const getPurchasedProducts = async (req, res) => {
     try {
         const id = req.params.id
 
-        const data = await userModel.findById(id).populate('purchasedProduct').select('name image status')
+        const result = await userModel.findById(id).populate('purchasedProduct').select('name image status')
+        const data = result.purchasedProduct.filter((item) => item.hide === false)
 
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
-        return res.status(200).json({ status: 'success', data: data.purchasedProduct })
+        return res.status(200).json({ status: 'success', data })
     } catch (err) {
         return res.status(500)
     }
@@ -427,12 +504,13 @@ const getReceivedProducts = async (req, res) => {
     try {
         const id = req.params.id
 
-        const data = await userModel.findById(id).populate('receivedProduct').select('name image status')
+        const result = await userModel.findById(id).populate('receivedProduct').select('name image status')
+        const data = result.receivedProduct.filter((item) => item.hide === false)
 
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
-        return res.status(200).json({ status: 'success', data: data.receivedProduct })
+        return res.status(200).json({ status: 'success', data })
     } catch (err) {
         return res.status(500)
     }
@@ -442,12 +520,13 @@ const getParticipateReceiving = async (req, res) => {
     try {
         const id = req.params.id
 
-        const data = await userModel.findById(id).populate('participateReceiving').select('name image status')
+        const result = await userModel.findById(id).populate('participateReceiving').select('name image status')
+        const data = result.participateReceiving.filter((item) => item.hide === false)
 
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
-        return res.status(200).json({ status: 'success', data: data.participateReceiving })
+        return res.status(200).json({ status: 'success', data })
     } catch (err) {
         return res.status(500)
     }
@@ -456,11 +535,13 @@ const getParticipateReceiving = async (req, res) => {
 const getBidsProducts = async (req, res) => {
     try {
         const id = req.params.id
-        const data = await userModel.findById(id).populate('bids').select('name image status')
+        const result = await userModel.findById(id).populate('bids').select('name image status')
+        const data = result.bids.filter((item) => item.hide === false)
+
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
-        return res.status(200).json({ status: 'success', data: data.bids })
+        return res.status(200).json({ status: 'success', data })
     } catch (err) {
         return res.status(500)
     }
@@ -498,11 +579,13 @@ const getWinProducts = async (req, res) => {
     try {
         const id = req.params.id
 
-        const data = await userModel.findById(id).populate('winProduct').select('name image status')
+        const result = await userModel.findById(id).populate('winProduct').select('name image status')
+        const data = result.winProduct.filter((item) => item.hide === false)
+
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
-        return res.status(200).json({ status: 'success', data: data.winProduct })
+        return res.status(200).json({ status: 'success', data })
     } catch (err) {
         return res.status(500)
     }
@@ -1008,8 +1091,6 @@ const replyComment = async (req, res) => {
 
         rate.replyComment = comment
         await rate.save()
-
-
         //xu li tao thong bao va thong bao den nguoi dung
         const notification = new notificationModel({
             content: `Người bán đã phản hồi một đánh giá của bạn!`,
@@ -1019,7 +1100,6 @@ const replyComment = async (req, res) => {
         })
 
         await notification.save()
-
         const receiver = await userModel.findById(rate.from.userId)
         receiver.notification.unshift(notification._id)
         await receiver.save()
@@ -1292,14 +1372,33 @@ const handleMilestone_server = async (data) => {
             $pull: { follower: data.clientId }
         }, { new: true })
 
-
     io.in(client?._id.toString()).emit('new_notification', 'milestone_new')
-
+// 
 }
 
+//  ui
 
+const getNumberOfIntro = async (req, res) => {
+    try {
+        const data = {
+            auction: 0,
+            free: 0,
+            news: 0,
+            user: 0
+        }
+        const statistic = await statisticModel.find()
+        statistic.forEach((item) => {
+            data.auction += item.auctionCount
+            data.free += item.freeProductCount
+            data.news += item.newsCount
+            data.user += item.userCount
+        })
+        return res.status(200).json({ status: 'success', data });
 
-// export
+    } catch (error) {
+        return res.status(500)
+    }
+}
 
 
 
@@ -1307,9 +1406,9 @@ const handleMilestone_server = async (data) => {
 
 export {
     createRate, contact, handleMilestone_server, replyComment, getUserByEmail, addFollow, unFollow, addFollowProduct, unFollowProduct,
-    getParticipateReceiving, getRefuseFreeProducts, sendMailToUser, getNotifications, updateNotifications,
+    getParticipateReceiving, getRefuseFreeProducts, sendMailToUser, getNotifications, updateNotifications, getNumberOfIntro,
     getRefuseProducts, getBidsProducts, getReceivedProducts, getFreeProductsByOwner, deleteNotification,
     getProductsByOwner, deleteProductHistory, getPurchasedProducts, getWinProducts, updateProfile, createOTP, verifyAccount,
-    deleteUserById, updateBidsForUserById_server, getUserById, signIn, signUp, resetPass, deleteReport,
+    deleteUserById, updateBidsForUserById_server, getUserById, signIn, signUp, resetPass, deleteReport, confirmResetPass,
     changePass, updateBlockUserById, getAllUser, approveReport, createReport, getReports, handleFinishTransaction
 };

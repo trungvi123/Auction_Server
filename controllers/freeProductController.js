@@ -70,9 +70,9 @@ const getAllFreeProducts = async (req, res) => {
         const limit = req.params.limit
         let data
         if (limit) {
-            data = await freeProductModel.find({ status: 'Đã được duyệt' }).populate('category').sort({ createdAt: 1 }).limit(limit)
+            data = await freeProductModel.find({ status: 'Đã được duyệt',hide:false }).populate('category').sort({ createdAt: 1 }).limit(limit)
         } else {
-            data = await freeProductModel.find({ status: 'Đã được duyệt' }).populate('category').sort({ createdAt: 1 })
+            data = await freeProductModel.find({ status: 'Đã được duyệt',hide:false }).populate('category').sort({ createdAt: 1 })
         }
         if (!data) {
             return res.status(400).json({ status: 'failure' })
@@ -89,9 +89,9 @@ const getFreeProducts = async (req, res) => {
         const limit = req.params.limit
         let data
         if (limit) {
-            data = await freeProductModel.find({ status: 'Đã được duyệt', outOfStock: false }).populate('category').sort({ createdAt: 1 }).limit(limit)
+            data = await freeProductModel.find({ status: 'Đã được duyệt', outOfStock: false,hide:false }).populate('category').sort({ createdAt: 1 }).limit(limit)
         } else {
-            data = await freeProductModel.find({ status: 'Đã được duyệt', outOfStock: false }).populate('category').sort({ createdAt: 1 })
+            data = await freeProductModel.find({ status: 'Đã được duyệt', outOfStock: false,hide:false }).populate('category').sort({ createdAt: 1 })
         }
         if (!data) {
             return res.status(400).json({ status: 'failure' })
@@ -111,7 +111,9 @@ const getFreeProductsByEmail = async (req, res) => {
             return res.status(400).json({ status: 'failure' })
         }
 
-        const data = await freeProductModel.find({ status: 'Đã được duyệt', owner: user._id }).populate('category')
+        const result = await freeProductModel.find({ status: 'Đã được duyệt', owner: user._id }).populate('category')
+        const data = result.filter((item)=> item.hide === false)
+
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
@@ -137,10 +139,36 @@ const getProductById = async (req, res) => {
 
 }
 
+
+const getHideProductsByOwner = async (req, res) => {
+    try {
+        const id = req.params.id
+        const dataFromToken = req.dataFromToken
+        if(dataFromToken._id.toString() !== id.toString()){
+            return res.status(400).json({ status: 'failure' })
+        }
+        const data = await freeProductModel.find({
+            $and: [
+                { status: 'Đã được duyệt' },
+                { owner: id },
+                { hide: true },
+            ]
+        }).populate('category')
+
+        if (!data) {
+            return res.status(400).json({ status: 'failure' })
+        }
+        return res.status(200).json({ status: 'success', data })
+
+    } catch (error) {
+        return res.status(500)
+    }
+}
+
 const getParticipationList = async (req, res) => {
     try {
         const id = req.params.id
-        const prod = await freeProductModel.findById(id).select('accepterList owner receiver name')
+        const prod = await freeProductModel.findById(id).populate('receiver').select('accepterList owner receiver name')
         if (!prod) {
             return res.status(400).json({ status: 'failure' })
         }
@@ -190,7 +218,7 @@ const signUpToReceive = async (req, res) => {
 const getProductsByStatus = async (req, res) => {
     try {
         const { status } = req.body
-        const data = await freeProductModel.find({ status: status })
+        const data = await freeProductModel.find({ status: status,hide:false })
         if (!data) {
             return res.status(400).json({ status: 'failure' })
         }
@@ -277,7 +305,7 @@ const confirmSharingProduct = async (req, res) => {
             return res.status(400).json({ status: 'failure' })
         }
         const dataFromToken = req.dataFromToken
-        if (dataFromToken._id !== product.owner.toString()) {
+        if (dataFromToken._id.toString() !== product.owner._id.toString()) {
             return res.status(400).json({ status: 'failure', msg: 'Bạn không có quyền thực hiện thao tác này!' });
         }
        
@@ -333,4 +361,4 @@ const confirmSharingProduct = async (req, res) => {
     }
 }
 
-export { createFreeProduct, getFreeProductsByEmail, getFreeProducts, getAllFreeProducts, getProductById, confirmSharingProduct, getParticipationList, signUpToReceive, getProductsByStatus, editFreeProduct }
+export { createFreeProduct, getFreeProductsByEmail, getFreeProducts,getHideProductsByOwner, getAllFreeProducts, getProductById, confirmSharingProduct, getParticipationList, signUpToReceive, getProductsByStatus, editFreeProduct }
